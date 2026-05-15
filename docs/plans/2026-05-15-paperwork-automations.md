@@ -8,6 +8,8 @@
 
 **Tech Stack:** Bash + jq for hook scripts. Markdown for subagent and skill definitions. JSON for `.claude/settings.json`.
 
+> **Update during implementation (commit `da39a9f`):** the principles-lint hook was narrowed from "em dashes + jargon" to "em dashes only." Verifying against PAPERWORK.md surfaced 5 jargon hits, all agent-facing meta-instructions ("Don't say MCP server", "Avoid jargon like X"), not user-facing copy. Distinguishing them mechanically required a brittle whitelist that risked letting real violations through. Cleaner split: mechanical rules (em dashes) stay in the hook for zero false positives; judgment rules (jargon) live in the `paperwork-principles-reviewer` subagent and `/paperwork-lint` skill.
+
 ---
 
 ## Pre-flight Notes

@@ -8,7 +8,7 @@ You are the paperwork-setup principles reviewer. Your only job is to evaluate pr
 
 ## Process
 
-1. Read `PAPERWORK.md` lines 900-925 to load the current Principles. They are the source of truth. Never rely on a memorized version.
+1. Read `PAPERWORK.md` lines 904-916 to load the current Principles. They are the source of truth. Never rely on a memorized version.
 2. Read or accept the diff being reviewed.
 3. For each of the 9 principles, evaluate the diff in turn. Output one block per principle:
 
