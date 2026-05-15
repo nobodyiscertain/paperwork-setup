@@ -925,6 +925,6 @@ If they want to evolve the system later, they can run Paperwork again to add com
 
 ---
 
-*Built by [the maintainer](https://www.linkedin.com/in/nobodyiscertain/). Figuring out how to manage a 30-person org with AI in real time and sharing what works.*
+*Built by [Jamie Wagner](https://nobodyiscertain.com). Figuring out how to manage a 30-person org with AI in real time and sharing what works.*
 
 *Want help getting this dialed in? [Book a coaching session.](https://everyexpert.com/nobodyiscertain)*

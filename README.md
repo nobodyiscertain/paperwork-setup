@@ -65,7 +65,7 @@ The system gets you most of the way. If you want hands-on help getting it set up
 
 ## Built By
 
-[The maintainer](https://www.linkedin.com/in/nobodyiscertain/), figuring out how to manage a 30-person org with AI in real time and sharing what works.
+[Jamie Wagner](https://nobodyiscertain.com), figuring out how to manage a 30-person org with AI in real time and sharing what works.
 
 ## License
 
