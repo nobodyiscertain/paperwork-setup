@@ -445,7 +445,7 @@ The install marker lives at `.claude/paperwork-version` and contains one line: `
    - If the file is missing or unreadable, ask: "I can't find your install marker. Roughly when did you install Paperwork? (a date or week is fine)" Resolve their answer to the closest upstream commit by date via `gh api repos/nobodyiscertain/paperwork-setup/commits --jq '.[] | select(.commit.committer.date <= "YYYY-MM-DDT23:59:59Z") | .sha' | head -1`. Use that as `MARKER_SHA` for this run only. Don't write the marker until the wizard exits cleanly.
 
 2. **Fetch the latest upstream SHA.**
-   - `LATEST_SHA=$(gh api repos/nobodyiscertain/paperwork-setup/commits/master --jq .sha)`
+   - `LATEST_SHA=$(gh api repos/nobodyiscertain/paperwork-setup/commits/main --jq .sha)`
    - If `gh` isn't available, fall back to `git ls-remote https://github.com/nobodyiscertain/paperwork-setup HEAD | cut -f1`.
 
 3. **Short-circuit on already-current.**
@@ -981,7 +981,7 @@ Customize it from the interview answers and from what Steps 1-10 produced. Varia
 - `{{has_dashboard}}` — whether Step 9 ran.
 - `{{has_git}}` — whether Step 10 initialized git.
 - `{{has_modes}}`, `{{records_meetings}}`, `{{writes_weeklies}}` — feature flags that gate whole sections.
-- `{{install_sha}}` and `{{install_sha_short}}` — the upstream HEAD SHA you'll write into the marker in Step 12. Fetch it now (`gh api repos/nobodyiscertain/paperwork-setup/commits/master --jq .sha`, falling back to `git ls-remote https://github.com/nobodyiscertain/paperwork-setup HEAD | cut -f1`) and reuse the same value when you write the marker. `install_sha_short` is the first 7 characters.
+- `{{install_sha}}` and `{{install_sha_short}}` — the upstream HEAD SHA you'll write into the marker in Step 12. Fetch it now (`gh api repos/nobodyiscertain/paperwork-setup/commits/main --jq .sha`, falling back to `git ls-remote https://github.com/nobodyiscertain/paperwork-setup HEAD | cut -f1`) and reuse the same value when you write the marker. `install_sha_short` is the first 7 characters.
 - `{{install_date_ct}}` — install date formatted as a human date in Central Time (e.g., `May 15, 2026`). Use `TZ=America/Chicago date "+%B %d, %Y"`.
 - `{{installed_commands_list}}` — the actual list of slash commands that ended up in `.claude/commands/` after Step 3, with each entry as a markdown bullet `- \`/name\` — one-sentence summary`. Build this dynamically; only include conditional commands the user opted in to.
 
@@ -1064,7 +1064,7 @@ After substitution, write the rendered content to `README.md` at the root of the
 Record the upstream SHA this install was generated from. `/paperwork-update` reads this later to figure out what's new.
 
 1. Fetch the current upstream HEAD SHA (or reuse the value you already computed for `{{install_sha}}` in Step 11):
-   - `INSTALL_SHA=$(gh api repos/nobodyiscertain/paperwork-setup/commits/master --jq .sha)`
+   - `INSTALL_SHA=$(gh api repos/nobodyiscertain/paperwork-setup/commits/main --jq .sha)`
    - If `gh` isn't installed, fall back to `git ls-remote https://github.com/nobodyiscertain/paperwork-setup HEAD | cut -f1`.
 2. Capture an ISO-8601 UTC timestamp: `TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)`.
 3. Write one line to `.claude/paperwork-version`: `${INSTALL_SHA} ${TS}` followed by a newline. Overwrite if a stale marker exists. Create `.claude/` first if it doesn't.
