@@ -24,11 +24,11 @@ run_case() {
   fi
 }
 
-run_case "clean.md exits 0"            "$FIXTURES/clean.md"          0
-run_case "em-dash.md exits 2"          "$FIXTURES/em-dash.md"        2
-run_case "jargon.md exits 2"           "$FIXTURES/jargon.md"         2
-run_case "jargon-allowed.md exits 0"   "$FIXTURES/jargon-allowed.md" 0
-run_case "non-markdown skipped"        "/tmp/not-a-real-file.txt"    0
+run_case "clean.md exits 0"                  "$FIXTURES/clean.md"          0
+run_case "em-dash.md exits 2"                "$FIXTURES/em-dash.md"        2
+run_case "jargon.md exits 0 (deferred to subagent)"      "$FIXTURES/jargon.md"         0
+run_case "jargon-allowed.md exits 0"         "$FIXTURES/jargon-allowed.md" 0
+run_case "non-markdown skipped"              "/tmp/not-a-real-file.txt"    0
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

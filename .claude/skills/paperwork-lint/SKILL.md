@@ -10,6 +10,8 @@ Run a full principles audit on this repo. Two-pass.
 
 ## Pass 1: Mechanical (regex)
 
+The principles-lint hook only enforces Principle 8 (no em dashes). Principle 7 (no jargon) requires meta-instruction judgment and is deferred to Pass 2.
+
 Run the principles-lint hook against every tracked markdown file:
 
 ```bash
