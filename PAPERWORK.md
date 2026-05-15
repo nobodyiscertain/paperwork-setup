@@ -130,6 +130,7 @@ Use `{{placeholder}}` tokens in the templates below as a model for what to subst
 
 ```
 [repo-root]/
+├── README.md                    # Human-readable orientation (always; see Step 11)
 ├── CLAUDE.md                    # AI instructions (always)
 ├── people/                      # Direct reports (if they have reports)
 │   └── example-person/          # One example for them to duplicate
@@ -453,7 +454,8 @@ The install marker lives at `.claude/paperwork-version` and contains one line: `
 4. **Diff user-facing files between the two SHAs.**
    - `gh api repos/nobodyiscertain/paperwork-setup/compare/{MARKER_SHA}...{LATEST_SHA} --jq '.files[] | {path: .filename, status: .status, patch: .patch}'`
    - **Keep** changes where the path matches: `PAPERWORK.md` (the template that drives generation), or anything that would be regenerated into the user's instance (commands the user has installed, the success/signal/feedback/question reference files, dashboard files if they installed it).
-   - **Drop** internal-only paths: `docs/**`, `README.md`, `LICENSE`, the plan files, anything under `.github/`.
+   - **Drop** internal-only paths: `docs/**`, `LICENSE`, the plan files, anything under `.github/`.
+   - **Also drop** `README.md`. The upstream README documents the paperwork-setup project, not the user's instance. The user's own `README.md` is generated once at install (PAPERWORK.md Step 11) from the wizard's answers and is theirs to edit, like `CLAUDE.md`. `/paperwork-update` never overwrites it.
    - Also fetch the commit list across the range so each card can quote a real commit message: `gh api repos/nobodyiscertain/paperwork-setup/compare/{MARKER_SHA}...{LATEST_SHA} --jq '.commits[] | {sha, message: .commit.message}'`.
 
 5. **Group into change-cards.**
@@ -968,11 +970,100 @@ If yes:
 - Initial commit: "initialize management system with Paperwork"
 - Ask if they want to push to GitHub or GitLab. If yes and they have `gh` or `glab` installed, create a private repo and push.
 
-### Step 11: Write the Install Marker
+### Step 11: Generate the Root README
+
+Write a `README.md` at the root of the user's instance. This is the human-readable orientation doc. CLAUDE.md is for the agent; README.md is for the manager (and any teammate they share the repo with). Generate it after all the configuration choices are known so the doc reflects what was actually installed, not the menu of possibilities.
+
+Customize it from the interview answers and from what Steps 1-10 produced. Variables to substitute (reuse the existing names from Step 2's CLAUDE.md template; introduce new ones only when needed):
+
+- `{{manager_first_name}}` — first name from the interview.
+- `{{report_count}}`, `{{has_partners}}`, `{{partner_count}}`, `{{has_leadership}}` — relationship shape.
+- `{{has_dashboard}}` — whether Step 9 ran.
+- `{{has_git}}` — whether Step 10 initialized git.
+- `{{has_modes}}`, `{{records_meetings}}`, `{{writes_weeklies}}` — feature flags that gate whole sections.
+- `{{install_sha}}` and `{{install_sha_short}}` — the upstream HEAD SHA you'll write into the marker in Step 12. Fetch it now (`gh api repos/nobodyiscertain/paperwork-setup/commits/master --jq .sha`, falling back to `git ls-remote https://github.com/nobodyiscertain/paperwork-setup HEAD | cut -f1`) and reuse the same value when you write the marker. `install_sha_short` is the first 7 characters.
+- `{{install_date_ct}}` — install date formatted as a human date in Central Time (e.g., `May 15, 2026`). Use `TZ=America/Chicago date "+%B %d, %Y"`.
+- `{{installed_commands_list}}` — the actual list of slash commands that ended up in `.claude/commands/` after Step 3, with each entry as a markdown bullet `- \`/name\` — one-sentence summary`. Build this dynamically; only include conditional commands the user opted in to.
+
+Use this template. Substitute every `{{placeholder}}` before writing. Don't leak literal `{{` tokens. Keep it readable on a phone: tight headings, short paragraphs, no emojis, no `Let's`, no em dashes. Second person voice — the README is talking to the manager about their instance.
+
+````markdown
+TEMPLATE: README.md
+---
+# {{manager_first_name}}'s Paperwork
+
+Your personal management system. Installed from [paperwork-setup](https://github.com/nobodyiscertain/paperwork-setup) on {{install_date_ct}} at commit [`{{install_sha_short}}`](https://github.com/nobodyiscertain/paperwork-setup/commit/{{install_sha}}).
+
+Claude is your copilot for managing {{report_count}} direct reports{{#if has_partners}} and {{partner_count}} cross-functional relationships{{/if}}. The agent reads `CLAUDE.md` every session and works through the slash commands in `.claude/commands/`. This file is for you, not the agent.
+
+## What's in here
+
+| Directory | What lives there |
+|---|---|
+| `people/` | One folder per direct report. `profile.md`, `one-on-ones.md`, `feedback.md`. |
+{{#if has_partners}}| `partners/` | Cross-functional partners (PMs, design leads, anyone you sync with regularly). Same shape as `people/`. |
+{{/if}}{{#if has_leadership}}| `leadership/` | Your manager, skip-level, anyone above you you want to track. Same shape as `people/`. |
+{{/if}}| `journal/[year]/` | Daily notes. `/think` and `/eod` write here. Prep cards also land here. |
+| `decisions/[year]/` | Significant decisions worth coming back to. Auto-created on first `/eod` route. |
+| `bragdoc/[year]/` | Weekly wins capture. Auto-created on first `/eod` route. |
+| `references/` | Question banks, signal framework, success framework, feedback guide. Edit as your thinking evolves. |
+{{#if records_meetings}}| `meetings/[year]/` | Non-1-on-1 meeting notes, routed by `/sync`. |
+{{/if}}{{#if writes_weeklies}}| `weeklies/[year]/` | Weekly update drafts from `/weekly`. |
+{{/if}}{{#if has_dashboard}}| `dashboard/` | The HTML dashboard renderer. See the README inside that folder. |
+{{/if}}| `.claude/commands/` | Slash command definitions. The agent reads these. |
+| `.claude/paperwork-version` | Install marker. `/paperwork-update` reads this to figure out what's new upstream. |
+
+## Slash commands
+
+You talk to Claude. Claude routes. These are the named entry points you have today.
+
+{{installed_commands_list}}
+
+You can add or remove commands later by re-running `/paperwork-setup`.
+
+## Your first week
+
+You don't have to do all of this. Pick what's useful.
+
+1. **Today (5 minutes).** Open `CLAUDE.md` and skim it. If anything misrepresents how you actually manage, edit it. Claude reads this file every session, so the truer it is, the better the prep gets.
+2. **Before your next 1-on-1 (10 minutes).** Duplicate `people/example-person/` into `people/[first-last]/` for two or three reports. Fill in `profile.md` with whatever you already know. 30% complete is fine. Raw notes beat blank.
+{{#if has_dashboard}}3. **Take the dashboard for a spin (optional).** Run the dashboard renderer (see `dashboard/README.md`) and open `dashboard/index.html`. Bookmark it.
+{{/if}}4. **After each 1-on-1.** Either let `/sync` pick it up automatically (if you record meetings) or run `/log [name]`. Don't worry about format. The system makes sense over time.
+5. **End of the first week.** Run `/health` and see if it surfaces anything useful. If it doesn't, edit `references/signal-framework.md` to match what you actually watch for, then try again.
+
+## What to expect
+
+- **Week 1.** Feels like extra typing. It is.
+- **Week 2.** `/prep` starts pulling useful context from your earlier entries.
+- **Month 1.** `/review`{{#if writes_weeklies}} and `/weekly`{{/if}} become a real time-saver.
+- **Quarter 1.** You stop thinking about the system and just talk to it.
+
+## Updating and reshaping
+
+Two knobs.
+
+- **`/paperwork-update`** pulls user-facing changes from upstream Paperwork. It walks each change as a yes/skip card and applies opt-ins via a three-way merge so your local edits survive. The current install is pinned to `{{install_sha_short}}` (see `.claude/paperwork-version`). Run it whenever you want to check for upstream improvements.
+- **`/paperwork-setup`** re-runs the install wizard with your current state loaded. Use it to add a new report, add or remove a slash command, change a global setting, or restructure after a role change. It doesn't touch the install marker.
+
+This README is yours. `/paperwork-update` won't overwrite it.
+
+## Help
+
+- **Upstream repo.** Bugs, ideas, new commands worth adopting: [nobodyiscertain/paperwork-setup](https://github.com/nobodyiscertain/paperwork-setup).
+- **Hands-on help.** If you want help getting this dialed in for your team, there's a coaching option linked from the upstream README.
+
+## Privacy
+
+This repo contains real notes on real people. Don't paste names or notes into web tools, shared chats, or screenshots. If a thread is sensitive enough that the person wouldn't want a peer to read it, mark the entry `(sensitive)` and Claude will skip it on team-wide summaries.
+````
+
+After substitution, write the rendered content to `README.md` at the root of the user's instance. Don't ship literal `{{` tokens.
+
+### Step 12: Write the Install Marker
 
 Record the upstream SHA this install was generated from. `/paperwork-update` reads this later to figure out what's new.
 
-1. Fetch the current upstream HEAD SHA:
+1. Fetch the current upstream HEAD SHA (or reuse the value you already computed for `{{install_sha}}` in Step 11):
    - `INSTALL_SHA=$(gh api repos/nobodyiscertain/paperwork-setup/commits/master --jq .sha)`
    - If `gh` isn't installed, fall back to `git ls-remote https://github.com/nobodyiscertain/paperwork-setup HEAD | cut -f1`.
 2. Capture an ISO-8601 UTC timestamp: `TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)`.
@@ -981,7 +1072,7 @@ Record the upstream SHA this install was generated from. `/paperwork-update` rea
 
 The file is plain text, single line, two whitespace-separated fields. The user can `cat` it. The SHA is the source of truth; the timestamp is informational.
 
-### Step 12: The Handoff
+### Step 13: The Handoff
 
 Tell them what was built, what's auto-populated, and what they need to fill in.
 
