@@ -21,7 +21,7 @@ from urllib.parse import urlparse
 SAFE_SCHEMES = {"http", "https", "mailto", ""}
 FENCE_RE = re.compile(r"```(?P<info>[\w-]{0,30})?\n(?P<body>.*?)\n```", re.DOTALL)
 H2_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
-CONTROL_CHARS = "\x01\x02\x03\x04\x05\x06\x07\x08\x0b\x0c\x0e\x0f"
+CONTROL_CHARS = "\x00\x01\x02\x03\x04\x05\x06\x07\x08\x0b\x0c\x0e\x0f"
 
 
 def _safe_href(url: str) -> str:
@@ -35,11 +35,17 @@ def _safe_href(url: str) -> str:
     '#'
     >>> _safe_href("/relative/path")
     '/relative/path'
+    >>> _safe_href("javascript" + chr(0) + ":alert(1)")
+    '#'
     """
     url = url.strip()
     if any(c in url for c in CONTROL_CHARS):
         return "#"
-    scheme = urlparse(url).scheme.lower()
+    parsed = urlparse(url)
+    scheme = parsed.scheme.lower()
+    # Defense in depth: reject "relative" URLs that look like scheme-with-control-char-bypass
+    if not scheme and ":" in url.split("/", 1)[0]:
+        return "#"
     return url if scheme in SAFE_SCHEMES else "#"
 
 

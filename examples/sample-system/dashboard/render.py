@@ -9,6 +9,7 @@ Open: dashboard/index.html
 """
 from __future__ import annotations
 
+import hashlib
 import html
 import re
 import sys
@@ -176,7 +177,7 @@ def library_cards() -> list[dict]:
         meta, body = parse_frontmatter(raw)
         slug = path.stem
         if not SLUG_OK.match(slug):
-            slug = f"doc-{abs(hash(slug)) % (10**8):08d}"
+            slug = f"doc-{hashlib.sha1(slug.encode('utf-8')).hexdigest()[:8]}"
         title = meta.get("title") or humanize(path.stem)
         summary = meta.get("summary") or first_paragraph(body)
         captured = meta.get("captured") or datetime.fromtimestamp(path.stat().st_mtime).date().isoformat()
@@ -203,6 +204,7 @@ def render_library_panel() -> str:
         tag_html = "".join(
             f'<span class="tag">{html.escape(t)}</span>' for t in d["tags"][:4]
         )
+        # data-tags is a v2 hook: enables client-side tag filtering without re-architecting
         cards.append(
             f'<button class="library-card" type="button" '
             f'aria-expanded="false" aria-controls="doc-{html.escape(d["slug"], quote=True)}" '

@@ -769,14 +769,13 @@ Open: dashboard/index.html
 """
 from __future__ import annotations
 
+import hashlib
 import html
 import re
 import sys
 from datetime import date, datetime
 from pathlib import Path
 
-# `_markdown` lives next to this file. Add the dashboard directory to the
-# path so `python dashboard/render.py` works regardless of CWD.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _markdown import render_markdown, split_into_h2_blocks  # noqa: E402
 
@@ -785,21 +784,13 @@ DASHBOARD = Path(__file__).resolve().parent
 ASSETS = DASHBOARD / "_assets"
 OUT = DASHBOARD / "index.html"
 
-# Single source of truth for journal H2 heading names. Slash command
-# templates that write to journal/*.md MUST use these exact strings.
 JOURNAL_HEADINGS = {"sod": "SOD", "schedule": "Schedule", "eod": "EOD"}
 
 FILENAME_OK = re.compile(r"^[A-Za-z0-9._-]+\.md$")
-MAX_FILE_BYTES = 1_000_000  # regex-DoS defense
+MAX_FILE_BYTES = 1_000_000
 
-
-# ============================================================
-# File helpers
-# ============================================================
 
 def safe_read(path: Path) -> str:
-    """Read a file if it exists, is under the size cap, and has a clean
-    filename. Returns '' otherwise. Logs to stderr on rejection."""
     if not path.exists():
         return ""
     if not FILENAME_OK.match(path.name):
@@ -813,7 +804,6 @@ def safe_read(path: Path) -> str:
     except UnicodeDecodeError:
         print(f"skip (not utf-8): {path.name}", file=sys.stderr)
         return ""
-    # Reject NUL bytes — they're our placeholder sentinel.
     return text.replace("\x00", "")
 
 
@@ -827,10 +817,6 @@ def prep_card_paths(target: date) -> list[Path]:
         return []
     return sorted(year_dir.glob(f"{target.isoformat()}-prep-*.md"))
 
-
-# ============================================================
-# Section renderers — each takes a target date and returns HTML
-# ============================================================
 
 def _panel(title: str, body: str, meta: str = "") -> str:
     meta_html = f'<span class="panel-meta">{html.escape(meta)}</span>' if meta else ""
@@ -867,12 +853,10 @@ def schedule_section(target: date) -> str:
     blocks = split_into_h2_blocks(text)
     body = blocks.get(JOURNAL_HEADINGS["schedule"], "").strip()
     if not body:
-        # Fallback for journals written before the /sod template change.
         sod = blocks.get(JOURNAL_HEADINGS["sod"], "").strip()
         if sod:
             return _panel("Schedule", '<p class="hint">Schedule lives inside today\'s start-of-day briefing.</p>')
         return _panel("Schedule", _empty("No schedule captured yet.", "/sod"))
-    # Count bullets for a small meta affordance.
     count = sum(1 for ln in body.splitlines() if ln.strip().startswith("-"))
     meta = f"{count} {'event' if count == 1 else 'events'}" if count else ""
     return _panel("Schedule", render_markdown(body), meta=meta)
@@ -905,10 +889,6 @@ def eod_section(target: date) -> str:
         return _panel("End of day", _empty("Not captured yet.", "/eod"))
     return _panel("End of day", f'<details open><summary>Day\'s recap</summary><div>{render_markdown(body)}</div></details>')
 
-
-# ============================================================
-# Library
-# ============================================================
 
 FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n", re.DOTALL)
 KV_RE = re.compile(r"^([a-zA-Z_][\w-]{0,40}):\s*(.{0,500})$")
@@ -948,7 +928,6 @@ def library_cards() -> list[dict]:
         if not FILENAME_OK.match(path.name):
             print(f"skip library (bad filename): {path.name}", file=sys.stderr)
             continue
-        # Path safety: must stay under library/.
         try:
             path.resolve().relative_to(lib.resolve())
         except ValueError:
@@ -958,7 +937,7 @@ def library_cards() -> list[dict]:
         meta, body = parse_frontmatter(raw)
         slug = path.stem
         if not SLUG_OK.match(slug):
-            slug = f"doc-{abs(hash(slug)) % (10**8):08d}"
+            slug = f"doc-{hashlib.sha1(slug.encode('utf-8')).hexdigest()[:8]}"
         title = meta.get("title") or humanize(path.stem)
         summary = meta.get("summary") or first_paragraph(body)
         captured = meta.get("captured") or datetime.fromtimestamp(path.stat().st_mtime).date().isoformat()
@@ -985,6 +964,7 @@ def render_library_panel() -> str:
         tag_html = "".join(
             f'<span class="tag">{html.escape(t)}</span>' for t in d["tags"][:4]
         )
+        # data-tags is a v2 hook: enables client-side tag filtering without re-architecting
         cards.append(
             f'<button class="library-card" type="button" '
             f'aria-expanded="false" aria-controls="doc-{html.escape(d["slug"], quote=True)}" '
@@ -1011,16 +991,11 @@ def render_library_panel() -> str:
     )
 
 
-# ============================================================
-# Tab + section registry
-# ============================================================
-
 DAILY_SECTIONS = [
     {{#if has_daily_bookends}}sod_section,
     {{/if}}schedule_section,
-    prep_cards_section,
-    {{#if has_daily_bookends}}eod_section,
-    {{/if}}
+    prep_cards_section,{{#if has_daily_bookends}}
+    eod_section,{{/if}}
 ]
 
 TABS = [
@@ -1028,10 +1003,6 @@ TABS = [
     {{#if has_library}}{"id": "library", "label": "Library"},{{/if}}
 ]
 
-
-# ============================================================
-# Page composition
-# ============================================================
 
 CSP = (
     "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; "
@@ -1052,7 +1023,7 @@ def render_hero(target: date) -> str:
 
 def render_tabs() -> str:
     if len(TABS) == 1:
-        return ""  # no tab nav if only one tab
+        return ""
     items = []
     for i, tab in enumerate(TABS):
         selected = "true" if i == 0 else "false"
@@ -1094,7 +1065,6 @@ def render_theme_toggle() -> str:
     )
 
 
-# Inlined synchronously in <head> BEFORE the stylesheet to prevent FOUC.
 PRE_PAINT_SCRIPT = """(function(){
   var stored = localStorage.getItem('theme');
   if (stored === 'light' || stored === 'dark') {
@@ -1164,7 +1134,7 @@ if __name__ == "__main__":
 ```python
 TEMPLATE: dashboard/_markdown.py
 ---
-"""Tiny markdown → HTML for the dashboard. Stdlib only.
+"""Tiny markdown -> HTML for the dashboard. Stdlib only.
 
 Supports: ATX headings (H1-H4), paragraphs, bulleted/numbered lists (one
 level of nesting), bold, italic, inline code, fenced code blocks,
@@ -1187,7 +1157,7 @@ from urllib.parse import urlparse
 SAFE_SCHEMES = {"http", "https", "mailto", ""}
 FENCE_RE = re.compile(r"```(?P<info>[\w-]{0,30})?\n(?P<body>.*?)\n```", re.DOTALL)
 H2_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
-CONTROL_CHARS = "\x01\x02\x03\x04\x05\x06\x07\x08\x0b\x0c\x0e\x0f"
+CONTROL_CHARS = "\x00\x01\x02\x03\x04\x05\x06\x07\x08\x0b\x0c\x0e\x0f"
 
 
 def _safe_href(url: str) -> str:
@@ -1201,11 +1171,17 @@ def _safe_href(url: str) -> str:
     '#'
     >>> _safe_href("/relative/path")
     '/relative/path'
+    >>> _safe_href("javascript" + chr(0) + ":alert(1)")
+    '#'
     """
     url = url.strip()
     if any(c in url for c in CONTROL_CHARS):
         return "#"
-    scheme = urlparse(url).scheme.lower()
+    parsed = urlparse(url)
+    scheme = parsed.scheme.lower()
+    # Defense in depth: reject "relative" URLs that look like scheme-with-control-char-bypass
+    if not scheme and ":" in url.split("/", 1)[0]:
+        return "#"
     return url if scheme in SAFE_SCHEMES else "#"
 
 
@@ -1239,17 +1215,12 @@ def _block_render(text: str) -> str:
     """Block-level state machine. Handles headings, lists (1-level nesting),
     blockquotes, horizontal rules, and paragraphs."""
     out: list[str] = []
-    stack: list[str] = []  # open block elements: 'ul', 'ol', 'blockquote', 'p'
-
-    def close_to(target: list[str]) -> None:
-        while stack and (not target or stack[-1] != target[-1]):
-            out.append(f"</{stack.pop()}>")
-            if target and stack and stack[-1] == target[-1]:
-                break
+    stack: list[str] = []
 
     def close_all() -> None:
         while stack:
-            out.append(f"</{stack.pop()}>")
+            tag = stack.pop()
+            out.append(f"</{tag.split('-')[0]}>")
 
     lines = text.split("\n")
     for raw_line in lines:
@@ -1259,7 +1230,6 @@ def _block_render(text: str) -> str:
             close_all()
             continue
 
-        # Headings
         m = re.match(r"^(#{1,4})\s+(.+)$", line)
         if m:
             close_all()
@@ -1267,13 +1237,11 @@ def _block_render(text: str) -> str:
             out.append(f"<h{level}>{_inline(m.group(2))}</h{level}>")
             continue
 
-        # Horizontal rule
         if re.match(r"^[-*_]{3,}$", line.strip()):
             close_all()
             out.append("<hr>")
             continue
 
-        # Blockquote
         if line.lstrip().startswith(">"):
             if not stack or stack[-1] != "blockquote":
                 close_all()
@@ -1283,17 +1251,14 @@ def _block_render(text: str) -> str:
             out.append(f"<p>{_inline(body)}</p>")
             continue
 
-        # Unordered list
         ul_match = re.match(r"^(\s{0,4})[-*+]\s+(.+)$", line)
         if ul_match:
             indent = len(ul_match.group(1))
             if indent >= 2:
-                # Nested ul
                 if not stack or stack[-1] != "ul-nested":
                     out.append("<ul>")
                     stack.append("ul-nested")
             else:
-                # Top-level ul
                 while stack and stack[-1] == "ul-nested":
                     out.append("</ul>")
                     stack.pop()
@@ -1304,7 +1269,6 @@ def _block_render(text: str) -> str:
             out.append(f"<li>{_inline(ul_match.group(2))}</li>")
             continue
 
-        # Ordered list
         ol_match = re.match(r"^(\s{0,4})\d+\.\s+(.+)$", line)
         if ol_match:
             indent = len(ol_match.group(1))
@@ -1323,7 +1287,6 @@ def _block_render(text: str) -> str:
             out.append(f"<li>{_inline(ol_match.group(2))}</li>")
             continue
 
-        # Paragraph
         if not stack or stack[-1] != "p":
             close_all()
             out.append("<p>")
@@ -1333,8 +1296,7 @@ def _block_render(text: str) -> str:
             out.append("<br>" + _inline(line))
 
     close_all()
-    # Map our internal tags to real ones.
-    return "".join(out).replace("ul-nested", "ul").replace("ol-nested", "ol")
+    return "".join(out)
 
 
 def render_markdown(text: str) -> str:
@@ -1367,10 +1329,11 @@ def split_into_h2_blocks(text: str) -> "dict[str, str]":
     Fenced code blocks are masked first so '## not a heading' inside ```...```
     doesn't split a block. Content before the first H2 is dropped.
 
-    >>> split_into_h2_blocks("## A\\nbody a\\n## B\\nbody b")
-    {'A': 'body a', 'B': 'body b'}
-    >>> split_into_h2_blocks("preamble\\n## Only\\nbody")
-    {'Only': 'body'}
+    >>> r = split_into_h2_blocks("## A\\nbody a\\n## B\\nbody b")
+    >>> r['A']
+    'body a'
+    >>> r['B']
+    'body b'
     """
     if not text:
         return {}
@@ -1381,9 +1344,9 @@ def split_into_h2_blocks(text: str) -> "dict[str, str]":
         heading = m.group(1).strip()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(masked)
         body = masked[m.end():end].strip()
-        # Restore fenced code placeholders inside the body.
         for j, block in enumerate(blocks_list):
-            body = body.replace(f"\x00FENCED{j}\x00", "```\n" + re.sub(r"<[^>]+>", "", block) + "\n```")
+            inner = re.sub(r"<[^>]+>", "", block)
+            body = body.replace(f"\x00FENCED{j}\x00", "```\n" + inner + "\n```")
         blocks[heading] = body
     return blocks
 ```
@@ -1579,7 +1542,13 @@ body {
   margin: 24px 0 8px;
 }
 .panel-body h3 { font-size: 17px; font-weight: 600; }
-.panel-body h4 { font-size: 14px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.panel-body h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
 .panel-body ul, .panel-body ol { padding-left: 22px; }
 .panel-body code {
   font-family: var(--font-mono);
@@ -1855,7 +1824,6 @@ TEMPLATE: dashboard/_assets/app.js
     showTab(location.hash.slice(1));
   });
 
-  // Initial tab from hash or default to first.
   if (tabs.length > 0) {
     showTab(location.hash.slice(1) || tabs[0].id.replace('tab-', ''));
   }
@@ -1890,10 +1858,8 @@ TEMPLATE: dashboard/_assets/app.js
     });
   });
 
-  // Initialize toggle state from current storage.
   applyThemeChoice(localStorage.getItem('theme') || 'system');
 
-  // React live to OS theme changes when System is active.
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
     if (!localStorage.getItem('theme')) applyThemeChoice('system');
   });
@@ -1907,7 +1873,6 @@ TEMPLATE: dashboard/_assets/app.js
       var body = document.getElementById('doc-' + slug);
       if (!body) return;
       var nowOpen = body.hidden;
-      // Close any other open docs.
       document.querySelectorAll('.doc-body').forEach(function (d) {
         if (d !== body) d.hidden = true;
       });

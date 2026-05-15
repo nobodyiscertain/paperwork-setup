@@ -1,7 +1,7 @@
 ---
 title: Lightweight Dashboard for Paperwork-Generated Systems
 type: feat
-status: active
+status: completed
 date: 2026-05-15
 ---
 
