@@ -466,7 +466,7 @@ End of day recap.
 
    After routing each item, **delete the inbox line.** Do not leave `(routed → ...)` tombstones; the destination file (or git history) is the audit trail. If a `## YYYY-MM-DD` header has no items left after routing, delete the header block too.
 
-5. **Promise triage.** If today's inbox has a `### Open promises (review)` section (written by `/sync` when it scanned `one-on-ones.md` files for unchecked Jamie-owned items), walk each line. The inbox entry includes a `path:line` reference back to the source file. Four options per item:
+5. **Promise triage.** If today's inbox has a `### Open promises (review)` section (written by `/sync` when it scanned `one-on-ones.md` files for unchecked {{manager_first_name}}-owned items), walk each line. The inbox entry includes a `path:line` reference back to the source file. Four options per item:
    - **Done**: edit the source line `[ ]` → `[x]` (use the `path:line` to navigate). Then delete the inbox line.
    - **Keep open**: delete the inbox line, leave the source `[ ]` untouched. The next `/sync` for that person will resurface it. This is the right move when there is no external task tracker; let the resurfacing do the reminding.
 {{#if tool_tasks}}   - **Push to {{tool_tasks}}**: create the task in {{tool_tasks}}, then edit the source line to `[x] (→ {{task_id}})` referencing the new task. Then delete the inbox line.
@@ -497,7 +497,7 @@ Batch process recorded meetings.
 
    If all three sub-sections would be empty, skip writing the block entirely.
 
-3a. **Scan for open promises.** For each person whose 1-on-1 was processed today, scan their `one-on-ones.md` for unchecked Jamie-owned items: `- [ ] [Jamie] ...` lines, lines under a `**{{manager_first_name}}'s commitments:**` heading, or generic `- [ ]` lines whose surrounding context implies {{manager_first_name}} owns them. Skip lines clearly owned by others.
+3a. **Scan for open promises.** For each person whose 1-on-1 was processed today, scan their `one-on-ones.md` for unchecked {{manager_first_name}}-owned items: `- [ ] [{{manager_first_name}}] ...` lines, lines under a `**{{manager_first_name}}'s commitments:**` heading, or generic `- [ ]` lines whose surrounding context implies {{manager_first_name}} owns them. Skip lines clearly owned by others.
 
    Append every match to today's inbox block under a `### Open promises (review)` heading, one per line, in the format:
 
@@ -925,6 +925,6 @@ If they want to evolve the system later, they can run Paperwork again to add com
 
 ---
 
-*Built by [Jamie Wagner](https://www.linkedin.com/in/nobodyiscertain/). Figuring out how to manage 30 people with AI in real time and sharing what works.*
+*Built by [the maintainer](https://www.linkedin.com/in/nobodyiscertain/). Figuring out how to manage a 30-person org with AI in real time and sharing what works.*
 
 *Want help getting this dialed in? [Book a coaching session.](https://everyexpert.com/nobodyiscertain)*
