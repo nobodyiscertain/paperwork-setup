@@ -132,28 +132,23 @@ Use `{{placeholder}}` tokens in the templates below as a model for what to subst
 [repo-root]/
 ├── README.md                    # Human-readable orientation (always; see Step 11)
 ├── CLAUDE.md                    # AI instructions (always)
-├── people/                      # Direct reports (if they have reports)
-│   └── example-person/          # One example for them to duplicate
-│       ├── profile.md
-│       ├── one-on-ones.md
-│       └── feedback.md
+├── people/                      # Direct reports (if they have reports). Populated by /new and the optional bulk bootstrap; never pre-seeded with example folders.
 ├── journal/                     # Daily thinking, /think and /eod output
 │   └── [current year]/
 ├── decisions/                   # Auto-created on first /eod route
 │   └── [current year]/
 ├── bragdoc/                     # Auto-created on first /eod route
 │   └── [current year]/
-├── references/                  # Question banks, frameworks
+├── references/                  # Question banks, frameworks, integrations doc
 │   ├── question-bank.md
 │   ├── signal-framework.md
 │   ├── feedback-guide.md
-│   └── success-framework.md     # NEW. How they measure success.
+│   ├── success-framework.md     # How they measure success.
+│   └── integrations.md          # Tools they named, with setup links/commands. Generated in Step 12.
 ├── [partners/]                  # If they mentioned cross-functional partners
 ├── [leadership/]                # If they want to track upward relationships
-├── [meetings/]                  # If they record meetings or want non-1:1 logs
-│   └── [current year]/
-├── [weeklies/]                  # If they write weekly updates
-│   └── [current year]/
+├── [meetings/]                  # If they record meetings or want non-1:1 logs. Lazy-created by /sync.
+├── [weeklies/]                  # Lazy-created by /weekly on first run
 ├── [dashboard/]                 # If they want a visual dashboard
 │   ├── render.py                # Or render.sh: see Step 8
 │   ├── style.css
@@ -167,11 +162,11 @@ Use `{{placeholder}}` tokens in the templates below as a model for what to subst
 **Conditional directories:**
 - `partners/` if cross-functional relationships came up
 - `leadership/` if upward relationships came up
-- `meetings/` if they record meetings or want non-1-on-1 logs
-- `weeklies/` if they write weekly updates
+- `meetings/` if they record meetings or want non-1-on-1 logs (the directory itself is lazy-created the first time `/sync` writes to it)
+- `weeklies/` if they write weekly updates (lazy-created on the first `/weekly` run)
 - `dashboard/` if they said yes to a visual dashboard
 
-Create an example person directory with realistic placeholder content (see Step 7). One example is enough. They'll duplicate it.
+Do not pre-seed `people/` with example or template folders. `/new` builds each person's directory from a self-contained template at the moment of creation. The optional bulk bootstrap in Step 14 calls `/new` once per name when the manager wants to scaffold their team in one pass.
 
 ### Step 2: Generate CLAUDE.md
 
@@ -335,6 +330,8 @@ The single source of truth for any kind of prep. 1-on-1, recurring meeting, peer
 {{#if tool_work_tracker}}   - From {{tool_work_tracker}}: issues touched, status changes, comments by or about the person or relevant to the meeting topic. {{tool_work_tracker_integration_call}}{{/if}}
 {{#if tool_code_tracker}}   - From {{tool_code_tracker}}: PRs opened, reviewed, merged. {{tool_code_tracker_integration_call}}{{/if}}
 {{#if tool_meeting_recorder}}   - From {{tool_meeting_recorder}}: any transcripts involving this person or meeting not yet logged. {{tool_meeting_recorder_integration_call}}{{/if}}
+
+   If any of these integrations isn't wired up yet (the call errors, the CLI isn't installed, the MCP server isn't registered), don't fake the data and don't silently skip. Note which integrations are missing inline in the prep card under a `## Missing integrations` heading, and point at `references/integrations.md` so the manager can wire what's missing on their own time. Continue with whatever activity you could pull.
 4. **Score against the success framework (people only).** Read `references/success-framework.md`. Name a pulse: green, yellow, or red, with the actual reason rooted in {{manager_first_name}}'s measurement system. Skip for non-person prep.
 5. **Surface signals.** Cross-reference against `references/signal-framework.md`. Note red or yellow flags from the last few entries.
 6. **List open promises.** Anything {{manager_first_name}} owes them (or owes the meeting attendees) from prior entries, marked Open or Done.
@@ -368,18 +365,54 @@ A thinking space for {{manager_first_name}}. No audience, no polish.
 ```markdown
 TEMPLATE: .claude/commands/new.md
 ---
-# /new [first-last]
+# /new [first-last] [--role "<title>"] [--type direct|partner|leadership]
 
-Bootstrap a new person's directory.
+Bootstrap a new person's directory. Works interactively for one person, or non-interactively when flags are passed (used by the optional bulk bootstrap in install Step 14).
 
-1. Ask the relationship type if not obvious: direct report, partner, or leadership.
-2. Create the directory: `[type]/[first-last]/` with three files:
-   - `profile.md`
-   - `one-on-ones.md`
-   - `feedback.md`
-   `/review` will lazily add `reviews.md` to the directory when it first writes a draft. Use the example-person templates as the structure.
-3. Ask for the basics: title, start date, role context. 30% complete is fine.
-4. If the user named the same person in other people's notes already, surface those references so they don't lose context.
+1. **Resolve relationship type.**
+   - If `--type` was passed, use it.
+   - Otherwise ask the user: direct report, partner, or leadership. If only one of those directories exists at the repo root (e.g., a small team with no partners yet), default to that one and confirm.
+2. **Create the directory.** `[type]/[first-last]/` with three files generated inline (do not look for an example or template folder; the templates live in this command):
+
+   `profile.md`:
+
+   ```markdown
+   # {{First Last}}
+
+   **Title:** {{title_or_blank}}
+   **Start Date:** {{start_date_or_blank}}
+   {{#if tool_work_tracker}}**{{tool_work_tracker}} handle:** {{handle_or_blank}}{{/if}}
+   {{#if tool_code_tracker}}**{{tool_code_tracker}} handle:** {{handle_or_blank}}{{/if}}
+
+   ## Notes
+
+   Free-form. Working style, strengths, growth areas, personal context, projects, anything worth remembering. No required structure. The file fills in naturally as 1-on-1s accumulate. 30% complete at creation time is fine.
+   ```
+
+   `one-on-ones.md`:
+
+   ```markdown
+   # 1-on-1 Notes. {{First Last}}
+
+   New entries go at the top.
+
+   ---
+   ```
+
+   `feedback.md`:
+
+   ```markdown
+   # Feedback Log. {{First Last}}
+
+   ## Feedback Given
+
+   ## Feedback Received (About Them)
+   ```
+
+   `/review` will lazily add `reviews.md` to the directory when it first writes a draft.
+
+3. **Ask for the basics** (skip when running non-interactively with flags): title, start date, role context. 30% complete is fine. Substitute answers into `profile.md` before writing it. Leave fields blank rather than inventing values.
+4. **Surface prior mentions.** Grep across `people/`, `partners/`, and `leadership/` for the person's first or last name. If they show up in someone else's `one-on-ones.md` or `feedback.md`, surface those lines so the manager does not lose context that was already captured.
 {{#if has_git}}5. Commit: "add [first-last] ([type])"{{/if}}
 ```
 
@@ -592,10 +625,13 @@ TEMPLATE: .claude/commands/sync.md (conditional: meeting recorder)
 Batch process recorded meetings.
 
 1. **Pull unlogged meetings** from {{tool_meeting_recorder}} since the last sync. {{tool_meeting_recorder_integration_call}}
+
+   If {{tool_meeting_recorder}} isn't reachable (the integration isn't installed, the call errors, the auth is stale), don't silently fail. Stop the routing pass, tell the manager which integration is missing, and point them at `references/integrations.md` for the setup steps. Resume `/sync` after they wire it.
+
 2. **Route each one:**
-   - 1-on-1: find the person, summarize the meeting, prepend to their `one-on-ones.md` with date and structured sections (Discussion, Signals, Action items, Notes for next time). Cross-reference any other names mentioned in the conversation to those people's `feedback.md`.
-   - Recurring meeting: write or append to `meetings/recurring/[slug]/log.md`.
-   - One-off: write to `meetings/[year]/[YYYY-MM-DD]-[slug].md`.
+   - **1-on-1:** find the person across `people/`, `partners/`, and `leadership/`. If the person doesn't have a folder yet (a first-time direct from your transcripts, a new partner who showed up), call `/new` non-interactively to scaffold the folder with whatever you can infer from the transcript (name, possibly title, possibly the meeting recorder's handle), then prepend the summary. After routing, surface the new person in chat: "I scaffolded `people/jane-roe/` from today's transcript. Open `profile.md` and fill in what you know." Then summarize the meeting and prepend to their `one-on-ones.md` with date and structured sections (Discussion, Signals, Action items, Notes for next time). Cross-reference any other names mentioned in the conversation to those people's `feedback.md`. Names mentioned but not yet scaffolded get a one-line "first mention" entry queued into today's inbox block for the manager to decide whether to `/new` them.
+   - **Recurring meeting:** if `meetings/recurring/[slug]/` doesn't exist yet, create it with two stub files before appending. `profile.md` gets a heading, the meeting title, the cadence inferred from the recorder's calendar metadata (if available), and a one-line "Edit me when you have time" note. `log.md` gets a heading and a "newest at top" line. Then append the meeting summary to `log.md`. After routing, surface the new folder in chat the same way as a new person.
+   - **One-off:** if `meetings/[year]/` doesn't exist yet, create it. Then write to `meetings/[year]/[YYYY-MM-DD]-[slug].md`.
 3. **Surface only the slim set into `inbox.md`.** Append a single `## [today] sync output` block to the bottom of `inbox.md`. The inbox is for items that need a human decision. It contains ONLY:
    - **Candidate action items**: anything {{manager_first_name}} appears to have committed to but hasn't opted into tracking yet.
    - **Uncertain items**: ambiguous things /sync couldn't auto-resolve (name match failure, owner unclear, etc).
@@ -745,72 +781,49 @@ Include:
 - Common deflection responses and how to handle them
 - A few example openers for different feedback types
 
-### Step 8: Generate Template Files
+### Step 8: Person Folder Templates Live in `/new`
 
-For the example person directory, create properly formatted files with realistic placeholder content. The user duplicates this for each real person. Generic placeholder beats blank.
+There is no example-person directory and no template folder to duplicate. The person-folder templates live inside the `/new` command (Step 3). When the manager runs `/new`, the command generates `profile.md`, `one-on-ones.md`, and `feedback.md` directly with whatever facts they have.
 
-```markdown
-TEMPLATE: people/example-person/profile.md
----
-# Sarah Chen
+The optional bulk bootstrap in Step 14 calls `/new` once per name when the manager wants to scaffold their whole team in one pass.
 
-**Title:** {{role_example_title}}
-**Start Date:** 2024-08-15
-{{#if tool_work_tracker}}**{{tool_work_tracker}} handle:** sarah.chen{{/if}}
-{{#if tool_code_tracker}}**{{tool_code_tracker}} handle:** sarahchen{{/if}}
+A few generation rules to keep `/new`'s output usable:
 
-## Notes
+- Profile + one-on-ones + feedback is the whole kit. Don't generate `2026-plan.md`, `goals.md`, or any other yearly aspirational template per person. If a manager wants per-person planning artifacts later, they can add them by hand.
+- Headings inside `one-on-ones.md` and `feedback.md` should be empty at creation time (just the file heading and a "newest at top" line). The first real entry is added by `/sync` or `/log`. Don't seed fake dated entries. Managers report the placeholders make the file feel cluttered and they end up deleting them by hand.
+- The `1-on-1 Notes` entry structure that `/sync` and `/log` write into `one-on-ones.md` looks like:
 
-Free-form. Working style, strengths, growth areas, personal context, projects, anything worth remembering. No required structure. The file fills in naturally as 1-on-1s accumulate. 30% complete at creation time is fine.
-```
+  ```markdown
+  ## YYYY-MM-DD
 
-Don't generate `2026-plan.md`, `goals.md`, or any other yearly aspirational template per person. Profile + one-on-ones + feedback is the whole kit. If a manager wants per-person planning artifacts later, they can add them by hand.
+  **Discussion:**
+  - [Key points]
+  - [Things they raised]
+  - [Things you raised]
 
-```markdown
-TEMPLATE: people/example-person/one-on-ones.md
----
-# 1-on-1 Notes. Sarah Chen
+  **Signals:**
+  - [Red, yellow, or positive flags noticed]
 
-New entries go at the top.
+  **Action items (theirs):**
+  - [ ] [What they own]
 
----
+  **Action items ({{manager_first_name}}'s):**
+  - [ ] [What you owe them]
 
-## YYYY-MM-DD
+  **Notes for next time:**
+  - [Threads to pick up]
+  ```
 
-**Discussion:**
-- [Key points]
-- [Things they raised]
-- [Things you raised]
+  This is the contract `/sync`, `/log`, `/eod`, and `/prep` write against. If you change the shape, update those commands.
 
-**Signals:**
-- [Red, yellow, or positive flags noticed]
+- The `feedback.md` shape that `/log` and `/sync` write into looks like:
 
-**Action items (theirs):**
-- [ ] [What they own]
+  ```markdown
+  ### YYYY-MM-DD. [Topic or "From [name]"]
+  [What you shared / what was said, how it landed.]
+  ```
 
-**Action items ({{manager_first_name}}'s):**
-- [ ] [What you owe them]
-- [ ] Send Sarah the offer-letter template before Friday
-
-**Notes for next time:**
-- [Threads to pick up]
-```
-
-```markdown
-TEMPLATE: people/example-person/feedback.md
----
-# Feedback Log. Sarah Chen
-
-## Feedback Given
-
-### YYYY-MM-DD. [Topic]
-[What you shared, how it landed.]
-
-## Feedback Received (About Them)
-
-### YYYY-MM-DD. From [name or context]
-[What was said, where, your read on it.]
-```
+  Entries go under `## Feedback Given` (feedback the manager gave the person) or `## Feedback Received (About Them)` (feedback others gave about this person). Both headings exist by default; populated by commands over time.
 
 ### Step 9: Generate the Dashboard (Conditional)
 
@@ -976,16 +989,16 @@ Write a `README.md` at the root of the user's instance. This is the human-readab
 
 Customize it from the interview answers and from what Steps 1-10 produced. Variables to substitute (reuse the existing names from Step 2's CLAUDE.md template; introduce new ones only when needed):
 
-- `{{manager_first_name}}` — first name from the interview.
-- `{{report_count}}`, `{{has_partners}}`, `{{partner_count}}`, `{{has_leadership}}` — relationship shape.
-- `{{has_dashboard}}` — whether Step 9 ran.
-- `{{has_git}}` — whether Step 10 initialized git.
-- `{{has_modes}}`, `{{records_meetings}}`, `{{writes_weeklies}}` — feature flags that gate whole sections.
-- `{{install_sha}}` and `{{install_sha_short}}` — the upstream HEAD SHA you'll write into the marker in Step 12. Fetch it now (`gh api repos/nobodyiscertain/paperwork-setup/commits/main --jq .sha`, falling back to `git ls-remote https://github.com/nobodyiscertain/paperwork-setup HEAD | cut -f1`) and reuse the same value when you write the marker. `install_sha_short` is the first 7 characters.
-- `{{install_date_ct}}` — install date formatted as a human date in Central Time (e.g., `May 15, 2026`). Use `TZ=America/Chicago date "+%B %d, %Y"`.
-- `{{installed_commands_list}}` — the actual list of slash commands that ended up in `.claude/commands/` after Step 3, with each entry as a markdown bullet `- \`/name\` — one-sentence summary`. Build this dynamically; only include conditional commands the user opted in to.
+- `{{manager_first_name}}`: first name from the interview.
+- `{{report_count}}`, `{{has_partners}}`, `{{partner_count}}`, `{{has_leadership}}`: relationship shape.
+- `{{has_dashboard}}`: whether Step 9 ran.
+- `{{has_git}}`: whether Step 10 initialized git.
+- `{{has_modes}}`, `{{records_meetings}}`, `{{writes_weeklies}}`: feature flags that gate whole sections.
+- `{{install_sha}}` and `{{install_sha_short}}`: the upstream HEAD SHA you'll write into the marker in Step 13. Fetch it now (`gh api repos/nobodyiscertain/paperwork-setup/commits/main --jq .sha`, falling back to `git ls-remote https://github.com/nobodyiscertain/paperwork-setup HEAD | cut -f1`) and reuse the same value when you write the marker. `install_sha_short` is the first 7 characters.
+- `{{install_date_ct}}`: install date formatted as a human date in Central Time (e.g., `May 15, 2026`). Use `TZ=America/Chicago date "+%B %d, %Y"`.
+- `{{installed_commands_list}}`: the actual list of slash commands that ended up in `.claude/commands/` after Step 3, with each entry as a markdown bullet `- \`/name\`: one-sentence summary`. Build this dynamically; only include conditional commands the user opted in to.
 
-Use this template. Substitute every `{{placeholder}}` before writing. Don't leak literal `{{` tokens. Keep it readable on a phone: tight headings, short paragraphs, no emojis, no `Let's`, no em dashes. Second person voice — the README is talking to the manager about their instance.
+Use this template. Substitute every `{{placeholder}}` before writing. Don't leak literal `{{` tokens. Keep it readable on a phone: tight headings, short paragraphs, no emojis, no `Let's`, no em dashes. Second person voice. The README is talking to the manager about their instance.
 
 ````markdown
 TEMPLATE: README.md
@@ -1000,15 +1013,15 @@ Claude is your copilot for managing {{report_count}} direct reports{{#if has_par
 
 | Directory | What lives there |
 |---|---|
-| `people/` | One folder per direct report. `profile.md`, `one-on-ones.md`, `feedback.md`. |
+| `people/` | One folder per direct report. Created by `/new`. |
 {{#if has_partners}}| `partners/` | Cross-functional partners (PMs, design leads, anyone you sync with regularly). Same shape as `people/`. |
 {{/if}}{{#if has_leadership}}| `leadership/` | Your manager, skip-level, anyone above you you want to track. Same shape as `people/`. |
 {{/if}}| `journal/[year]/` | Daily notes. `/think` and `/eod` write here. Prep cards also land here. |
 | `decisions/[year]/` | Significant decisions worth coming back to. Auto-created on first `/eod` route. |
 | `bragdoc/[year]/` | Weekly wins capture. Auto-created on first `/eod` route. |
-| `references/` | Question banks, signal framework, success framework, feedback guide. Edit as your thinking evolves. |
-{{#if records_meetings}}| `meetings/[year]/` | Non-1-on-1 meeting notes, routed by `/sync`. |
-{{/if}}{{#if writes_weeklies}}| `weeklies/[year]/` | Weekly update drafts from `/weekly`. |
+| `references/` | Question banks, signal framework, success framework, feedback guide, integrations doc. Edit as your thinking evolves. |
+{{#if records_meetings}}| `meetings/[year]/` | Non-1-on-1 meeting notes. Lazy-created by `/sync` on first run. |
+{{/if}}{{#if writes_weeklies}}| `weeklies/[year]/` | Weekly update drafts. Lazy-created by `/weekly` on first run. |
 {{/if}}{{#if has_dashboard}}| `dashboard/` | The HTML dashboard renderer. See the README inside that folder. |
 {{/if}}| `.claude/commands/` | Slash command definitions. The agent reads these. |
 | `.claude/paperwork-version` | Install marker. `/paperwork-update` reads this to figure out what's new upstream. |
@@ -1026,10 +1039,14 @@ You can add or remove commands later by re-running `/paperwork-setup`.
 You don't have to do all of this. Pick what's useful.
 
 1. **Today (5 minutes).** Open `CLAUDE.md` and skim it. If anything misrepresents how you actually manage, edit it. Claude reads this file every session, so the truer it is, the better the prep gets.
-2. **Before your next 1-on-1 (10 minutes).** Duplicate `people/example-person/` into `people/[first-last]/` for two or three reports. Fill in `profile.md` with whatever you already know. 30% complete is fine. Raw notes beat blank.
+2. **Before your next 1-on-1.** Run `/new [first-last]` for the report you're about to meet with. The agent asks the basics, builds the folder, surfaces anything already captured about that name in other notes. Repeat for your other reports as you go (or do them all at once with a paste-list when you have ten minutes).
 {{#if has_dashboard}}3. **Take the dashboard for a spin (optional).** Run the dashboard renderer (see `dashboard/README.md`) and open `dashboard/index.html`. Bookmark it.
 {{/if}}4. **After each 1-on-1.** Either let `/sync` pick it up automatically (if you record meetings) or run `/log [name]`. Don't worry about format. The system makes sense over time.
 5. **End of the first week.** Run `/health` and see if it surfaces anything useful. If it doesn't, edit `references/signal-framework.md` to match what you actually watch for, then try again.
+
+## Integrations
+
+`references/integrations.md` lists every tool you named during install with the setup link or install command for each. Slash commands that need an integration point at this file when one isn't wired yet, so the system tells you exactly what to install instead of failing quietly.
 
 ## What to expect
 
@@ -1059,7 +1076,42 @@ This repo contains real notes on real people. Don't paste names or notes into we
 
 After substitution, write the rendered content to `README.md` at the root of the user's instance. Don't ship literal `{{` tokens.
 
-### Step 12: Write the Install Marker
+### Step 12: Generate `references/integrations.md`
+
+Write the integrations doc using the tools the manager named in Part 3 of the interview (Calendar, Notes, Personal tasks, Team work tracking, Code/repo tracking, Meeting recorder, Team communication, Performance/HR, and any "anything else" they mentioned). One row per named tool, with a real setup pointer for each. This file is what `/prep` and `/sync` point at when an integration isn't wired up yet, so it has to be specific enough that the manager can act on it.
+
+For each tool, generate a section with:
+
+- **Heading:** the tool name.
+- **What you get when this is wired:** one sentence describing the concrete capability the system unlocks once the integration is connected.
+- **Set it up:** the install command, MCP server URL, CLI install line, or canonical doc link. For a starter set, hardcode the authoritative pointers below. For anything outside the starter set, use the generic fallback.
+
+**Starter set (hardcode these exactly):**
+
+- **Granola** (meeting recording): "Set it up: install the Granola Claude integration from `https://github.com/granolaai/granola-mcp`. Once wired, `/sync` pulls transcripts directly. Without it, paste transcripts manually when running `/sync`."
+- **Datadog** (observability): "Set it up: the Datadog MCP server lives at `https://github.com/DataDog/dd-mcp-server`. Auth uses a Datadog API key; instructions are in the repo README. Once wired, you can ask the agent about service health, recent incidents, and dashboards inline."
+- **Linear** (work tracking): "Set it up: Linear's MCP server is at `https://mcp.linear.app/sse`. Add it to your agent's MCP config and authenticate through Linear's OAuth flow. Once wired, `/prep` and `/weekly` pull issues, status changes, and comments touching a person automatically."
+- **GitHub** (code tracking): "Set it up: the official GitHub MCP server is at `https://github.com/github/github-mcp-server`. Auth is a personal access token or GitHub App install. Once wired, `/prep` pulls PR activity per person and `/weekly` pulls merged PRs across the team."
+- **Google Calendar** (calendar): "Set it up: the Google Calendar MCP server is at `https://github.com/GongRzhe/Calendar-MCP-Server`. Auth runs through Google OAuth on first call. Once wired, `/sod` reads today's events and `/prep [event]` resolves natural-language event lookups."
+- **Slack** (team communication): "Set it up: Slack's official MCP server is at `https://github.com/modelcontextprotocol/servers/tree/main/src/slack`. Auth is a Slack bot token from a workspace app. Once wired, the agent can post weekly updates as a draft and read recent messages in named channels when you ask."
+
+**Generic fallback** for any tool not in the starter set: "Set it up: search `https://github.com/modelcontextprotocol/servers` and the broader MCP ecosystem for a `{{tool_name}}` server. If none exists, the agent will fall back to manual prompts (it will ask you for the data it needs when a command runs). Tell me if you wire one up and I'll add the call to the relevant command in `CLAUDE.md`."
+
+**File layout.** Open the file with a one-paragraph "what this is" preamble, then a "Wired up" section (tools the manager said are already connected), then a "Not yet wired" section (tools they named but said they want to leave manual or wire later). Group accordingly based on their Part 3 answers. If they said "no calendar" or "no meeting recorder" for a row, skip that row entirely.
+
+End the file with a short "How commands use this file" block:
+
+```
+When a slash command needs a tool that isn't wired (the MCP server isn't
+installed, the CLI errors, auth is stale), it stops, names the tool, and
+points you at this file. Wire the integration on your own time. Re-run the
+command. Nothing here is required for the system to work; integrations
+make it faster.
+```
+
+Save to `references/integrations.md`.
+
+### Step 13: Write the Install Marker
 
 Record the upstream SHA this install was generated from. `/paperwork-update` reads this later to figure out what's new.
 
@@ -1072,42 +1124,57 @@ Record the upstream SHA this install was generated from. `/paperwork-update` rea
 
 The file is plain text, single line, two whitespace-separated fields. The user can `cat` it. The SHA is the source of truth; the timestamp is informational.
 
-### Step 13: The Handoff
+### Step 14: Optional Team Bootstrap
 
-Tell them what was built, what's auto-populated, and what they need to fill in.
+After everything else is generated and the marker is written, offer to scaffold the manager's team in one pass. This is the only time during install that `people/` (or `partners/` / `leadership/`) gets populated. If they skip, the directory stays empty and they use `/new` one report at a time as the week unfolds.
+
+Ask:
+
+```
+Want me to scaffold your team folders now? Paste a list of names and
+roles, one per line. I'll run /new on each without prompting and use
+the role hints to seed the profile. Or hit enter to skip and use /new
+yourself when you're ready.
+```
+
+If they paste a list, parse it line by line. Each line is one of:
+
+- `Jane Doe, Senior Engineer`: first-last plus title.
+- `Jane Doe, partner, Product Lead`: first-last plus relationship type plus title.
+- `Jane Doe`: name only. Treat as direct report and leave the title blank.
+
+For each parsed line, call `/new` non-interactively with `--type` (defaulting to `direct`) and `--role`. After the batch finishes, list the folders you created and surface any lines you couldn't parse so the manager can add them by hand.
+
+If they hit enter or paste nothing, skip silently. Don't push.
+
+Skip this step entirely if the interview said the manager has zero direct reports and zero partners (they probably don't want a bootstrap pass).
+
+### Step 15: The Handoff
+
+This is the moment the conversation ends. Make it feel like the wizard finished, not like a checklist got handed off. Be specific about what was built. Open the dashboard if there is one. Get out of the way.
 
 Use this template, adapted to what was actually generated:
 
 ```
-Your management system is ready. Here's where things stand.
+Built.
 
-**Auto-populated, ready to use:**
-- CLAUDE.md with your philosophy, success framework, and tool map
-- Slash commands wired to {{tool_list}}
-- Question banks weighted toward {{top_pain_points}}
-- Signal framework derived from what you said you watch for
-- Success framework with your stated criteria
-- Example person directory ({{example_person_path}})
-{{#if has_dashboard}}- Dashboard renderer at dashboard/render.py{{/if}}
-{{#if has_git}}- Git repo initialized{{/if}}
+Three things to do next:
+1. Connect your stack. Anything you said you wanted wired up lives in `references/integrations.md` with the setup link. Wire what you'll use this week, skip the rest.
+2. Run `/sod` tomorrow morning. The system reads `CLAUDE.md` and runs from there.
+{{#if has_dashboard}}3. The dashboard is open in your browser. Bookmark it.{{else}}3. Open `CLAUDE.md` and skim it. If anything misrepresents how you actually manage, edit it; the agent reads this file every session.{{/if}}
 
-**On you, in order:**
-1. **Now (5 min).** Open CLAUDE.md and read it. If anything misrepresents how you actually manage, edit it. The system reads from this file every session.
-2. **Before your next 1-on-1 (10 min).** Duplicate {{example_person_path}} to people/[first-last]/ for your top three reports. Fill in profile.md with whatever you know. 30% complete is fine.
-3. **Tool wiring (optional, 10 min).** Open the Tools table in CLAUDE.md. For any tool where you have a Claude integration installed, the commands will use it automatically. For anything else, the system falls back to manual prompts. You can wire integrations later.
-4. **First week.** After each 1-on-1, run /{{primary_log_command}} [name]. Don't worry about format. Raw notes compound.
-5. **End of first week.** Run /health and see if it surfaces anything useful. If not, edit references/signal-framework.md and try again.
-{{#if has_dashboard}}6. **Dashboard (optional).** Run `python dashboard/render.py` and open `dashboard/index.html`. Bookmark it.{{/if}}
-
-**What to expect:**
-- Week 1: feels like extra typing. It is.
-- Week 2: /prep starts pulling useful context.
-- Month 1: /review and /weekly become a real time-saver.
-
-If something's off, run `/paperwork-setup` to reshape your install (add a report, edit a command, change a global setting). To pull updates from upstream Paperwork later, run `/paperwork-update`. The system is meant to evolve.
-
-If you want hands-on help getting it dialed in, there's a coaching option in the README.
+Have fun.
 ```
+
+{{#if has_dashboard}}**After printing the handoff, actually open the dashboard.** Run `python dashboard/render.py` so `dashboard/index.html` is fresh, then open it:
+
+- On macOS: `open dashboard/index.html`
+- On Linux: `xdg-open dashboard/index.html` (fall back to printing the absolute path if `xdg-open` isn't installed or `$DISPLAY` is unset)
+- If the agent is running in a CLI-only environment with no GUI (a server, a remote tmux session, a CI container), don't try to open anything. Print the absolute path and tell the manager to open it manually.
+
+Don't claim you opened the dashboard if the `open`/`xdg-open` call returned non-zero. Print the path instead and move on.{{/if}}
+
+Don't dump a long "what's next" checklist after the handoff. The three-line version above is the whole exit. If the manager wants more guidance later, the generated `README.md` has the "Your first week" section and `/paperwork-setup` is one command away.
 
 ---
 

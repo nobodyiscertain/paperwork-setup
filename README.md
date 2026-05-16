@@ -2,13 +2,15 @@
 
 **AI handles the paperwork. You handle the humans.**
 
-Paperwork Setup is a one-shot wizard that builds your personal management system into the current directory. It interviews you about how you actually manage, then generates an instructions file your AI agent reads, slash commands wired to your tools, question banks tuned to your team, a signal framework, an optional dashboard, a starter directory for every report and partner, and a human-readable README so you can hand the repo to a future you (or a teammate) without explaining it.
+Paperwork Setup is a one-shot wizard that builds your personal management system into the current directory. It interviews you for fifteen or twenty minutes about how you actually manage your team, then generates an instructions file your AI agent reads, slash commands wired to your tools, question banks tuned to your people, a signal framework, an integrations doc, an optional dashboard, and a human-readable README so the repo makes sense when you come back to it months later.
 
 It is not a template you fill in. It is a conversation that builds a system.
 
-## Why this exists
+## Who this is for
 
-Managers do a surprising amount of paperwork: 1-on-1 prep, reviews, weekly updates, signal-watching, status digests. AI agents are good at most of it, but only if they know how *you* manage. Paperwork Setup encodes that once, into files you own, so the agent has context the moment you ask for help.
+Managers of any function. Engineering, product, design, ops, sales, support, finance. If you have direct reports, you already use an AI coding agent, and you want a file-based system you own rather than a SaaS dashboard, this is for you.
+
+If you have no direct reports yet, or you want a tool that manages your people for you, you probably want something else.
 
 ## Install
 
@@ -24,9 +26,23 @@ Then follow the instructions inside, starting with the interview. Build the
 system in the current directory.
 ```
 
-The wizard asks you about your team shape (reports, partners, leadership), your tools (calendar, docs, notes), your meeting cadence, whether you want a dashboard, whether to initialize git, and a few questions about how you actually manage. It is one question at a time, with an upfront count, so you know how long it will run. Expect 15-20 minutes.
+Run the wizard. It interviews you. Fifteen to twenty minutes. Done.
+
+The agent asks one question at a time about your team shape, your rhythm, your tools, your philosophy, and what falls through the cracks. When the conversation is over it generates everything in place. Nothing for you to copy or move.
 
 Works with any agent that can fetch a URL and write files: Claude Code, Codex, Cursor, OpenClaw, and most others. Chat UIs without filesystem access (ChatGPT, Claude.ai) cannot generate the system locally.
+
+## Your first week
+
+The wizard hands you a working repo. Here is what the first week looks like in practice.
+
+**Monday morning.** Open the directory and run `/sod`. The agent pulls today's calendar, prepares a prep card for every 1-on-1 and recurring meeting, surfaces what carried over from Friday, and asks you what your one priority is today. You read the briefing, push the priority back if it is wrong, then start your day.
+
+**Midweek, right after a 1-on-1.** Run `/sync`. The agent pulls the transcript from your meeting recorder, summarizes the conversation into the right person's file, cross-references any other names that came up, and surfaces only the items that need your judgment. If the meeting was a recurring one the agent has not seen before, it sets up the folder for that meeting on the fly. Same for any new name that comes up in the transcript. You do not move files around.
+
+**Friday afternoon.** Run `/weekly`. The agent reads every 1-on-1 entry from the week, pulls activity from your work tracker and code host, and drafts your week-in-review for your manager in your voice. You edit, you send.
+
+**End of the day, any day.** Run `/eod`. The agent walks your inbox, asks where each item belongs, routes decisions into a decision log, wins into a brag doc, action items into your task tool. The inbox ends empty.
 
 ## What you get
 
@@ -34,27 +50,31 @@ After the conversation, you have a working repo:
 
 | Path | What it is |
 | --- | --- |
-| `README.md` | Your instance's human-readable orientation doc. Customized from your interview answers. |
+| `README.md` | Your instance's human-readable orientation doc, customized from your interview. |
 | `CLAUDE.md` | The agent's instructions. Your philosophy, your success framework, your tool map. |
-| `people/[name]/` | Profile, 1-on-1 log, and feedback log per direct report and partner. |
-| `references/` | Question banks, signal framework, success criteria, feedback templates. |
-| `dashboard/` | Optional. Single HTML file you open in your browser. |
-| `meetings/`, `weeklies/` | Optional. Routed by `/sync` and `/weekly`. |
+| `people/[name]/` | Profile, 1-on-1 log, and feedback log per direct report and partner. Created by `/new`. |
+| `references/` | Question banks, signal framework, success framework, feedback guide, integrations doc. |
+| `dashboard/` | Optional. Single HTML file the wizard opens in your browser when it finishes. |
+| `meetings/`, `weeklies/` | Optional. Lazy-created by `/sync` and `/weekly` the first time you need them. |
 | `.claude/commands/` | Slash command definitions. |
 | `.claude/paperwork-version` | Install marker. Used by `/paperwork-update` to know what is new upstream. |
 
 Slash commands available in your instance:
 
-- `/new`: adds a direct report or partner and scaffolds their directory
-- `/sod` and `/eod`: start and end of day routines
-- `/sync`: routes meeting notes to the right place
-- `/weekly`: drafts a weekly update from the week's activity
-- `/think`: open-ended thinking partner mode
-- `/prep`: prep for an upcoming 1-on-1 or meeting
-- `/paperwork-update`: pull opt-in updates from upstream Paperwork Setup
-- `/paperwork-setup`: re-run the configuration wizard against an existing install
+- `/new`: adds a new direct report or partner. Conversational; the agent asks the basics, you answer, it builds the folder.
+- `/sod` and `/eod`: start and end of day routines.
+- `/sync`: routes meeting notes to the right place. Lazy-creates folders when it meets a new person or recurring meeting.
+- `/weekly`: drafts a weekly update from the week's activity.
+- `/think`: open-ended thinking partner mode.
+- `/prep`: prep for an upcoming 1-on-1 or meeting.
+- `/paperwork-update`: pull opt-in updates from upstream Paperwork Setup.
+- `/paperwork-setup`: re-run the configuration wizard against an existing install.
 
 Optional commands appear only if your interview answers warrant them.
+
+## Integrations
+
+The wizard generates `references/integrations.md` listing every tool you named, with the setup link or install command for each one. When a slash command needs an integration that is not wired up yet, it points you at that file instead of silently degrading. Wire what you need, when you need it.
 
 ## How to update
 
@@ -78,14 +98,6 @@ To reconfigure an existing install (turn the dashboard on, add new commands, cha
 Paperwork Setup is a Claude Code skill that lives as a single prompt (`PAPERWORK.md`) plus an MIT license. Your agent fetches that prompt, runs the interview, and generates files into the current directory. Everything after install is regular files. No background process, no SaaS, no telemetry.
 
 The install marker at `.claude/paperwork-version` records the upstream SHA your instance was generated from. `/paperwork-update` reads that marker to compute the upgrade path the next time you run it.
-
-## Who it is for
-
-Managers of any function. Engineering, product, design, ops, sales, support, customer success. The interview adapts to your stack.
-
-You probably want this if you have direct reports, you already use AI coding agents, and you want a file-based system you own rather than a SaaS dashboard.
-
-You probably do not want this if you have no direct reports yet, or if you want someone else to manage your people for you.
 
 ## Coaching
 
