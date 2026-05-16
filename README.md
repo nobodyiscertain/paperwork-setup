@@ -2,13 +2,9 @@
 
 **AI handles the paperwork. You handle the humans.**
 
-Paperwork Setup is a one-shot wizard that builds your personal management system into the current directory. It interviews you about how you actually manage, then generates an instructions file your AI agent reads, slash commands wired to your tools, question banks tuned to your team, a signal framework, an optional dashboard, a starter directory for every report and partner, and a human-readable README so you can hand the repo to a future you (or a teammate) without explaining it.
+Paperwork Setup is a one-shot wizard that builds your personal management system into the current directory. It interviews you for about 20 minutes, then generates an instructions file your AI agent reads, slash commands wired to your tools, question banks tuned to your team, a signal framework, an integrations guide for any tool you have not wired yet, an optional dashboard that opens on its own, and a human-readable README so future you (or a teammate) can pick up the repo without an explanation.
 
-It is not a template you fill in. It is a conversation that builds a system.
-
-## Why this exists
-
-Managers do a surprising amount of paperwork: 1-on-1 prep, reviews, weekly updates, signal-watching, status digests. AI agents are good at most of it, but only if they know how *you* manage. Paperwork Setup encodes that once, into files you own, so the agent has context the moment you ask for help.
+It is not a template you fill in. It is a conversation that builds a system. The system does the file work. You do the people work.
 
 ## Install
 
@@ -24,54 +20,68 @@ Then follow the instructions inside, starting with the interview. Build the
 system in the current directory.
 ```
 
-The wizard asks you about your team shape (reports, partners, leadership), your tools (calendar, docs, notes), your meeting cadence, whether you want a dashboard, whether to initialize git, and a few questions about how you actually manage. It is one question at a time, with an upfront count, so you know how long it will run. Expect 15-20 minutes.
+The wizard asks you about your team shape, your tools, your cadence, your philosophy, and your pain points. One question at a time, with an upfront count, so you know how long it will run. Expect 15 to 20 minutes.
+
+When the interview ends, the system writes itself. The dashboard (if you said yes to one) opens in your browser. You get three things to do next, not five.
 
 Works with any agent that can fetch a URL and write files: Claude Code, Codex, Cursor, OpenClaw, and most others. Chat UIs without filesystem access (ChatGPT, Claude.ai) cannot generate the system locally.
 
+## Your first week
+
+You do not duplicate folders. You do not copy templates. The commands handle file work.
+
+**Monday morning. `/sod`.**
+You open Claude and run `/sod`. It reads your calendar, runs `/prep` for every meeting on the day, writes a briefing, and refreshes the dashboard tab. By week two, the prep cards pull useful context from your earlier 1-on-1 notes.
+
+**Midweek. `/sync` or `/log` after a 1-on-1.**
+If you record meetings, `/sync` routes the transcript into the right person's `one-on-ones.md` and asks you once if a new name should get a folder. If you do not record meetings, `/log [name]` lets you dump notes and Claude structures them. Either way, the file work happens for you.
+
+**Friday. `/weekly` or `/health`.**
+`/weekly` reads the week's 1-on-1 notes and team activity and drafts an update in your voice. `/health` gives you a team snapshot: who is green, yellow, red, whose cadence has slipped, open promises you owe. Pick whichever your job actually calls for.
+
+That is the loop. `/think`, `/prep`, `/new`, `/review`, `/coach`, and `/prune` round out the toolkit; you reach for them when you need them.
+
 ## What you get
 
-After the conversation, you have a working repo:
+After the conversation, your repo looks like this:
 
 | Path | What it is |
 | --- | --- |
-| `README.md` | Your instance's human-readable orientation doc. Customized from your interview answers. |
+| `README.md` | Your instance's orientation doc. Customized from your interview answers. |
 | `CLAUDE.md` | The agent's instructions. Your philosophy, your success framework, your tool map. |
-| `people/[name]/` | Profile, 1-on-1 log, and feedback log per direct report and partner. |
-| `references/` | Question banks, signal framework, success criteria, feedback templates. |
-| `dashboard/` | Optional. Single HTML file you open in your browser. |
+| `people/[first-last]/` | Created lazily by `/new` or the optional bulk bootstrap. Profile, 1-on-1 log, feedback log. |
+| `references/` | Question banks, signal framework, success framework, feedback guide, integrations guide. |
+| `dashboard/` | Optional. Single HTML file that auto-opens after install. |
 | `meetings/`, `weeklies/` | Optional. Routed by `/sync` and `/weekly`. |
 | `.claude/commands/` | Slash command definitions. |
-| `.claude/paperwork-version` | Install marker. Used by `/paperwork-update` to know what is new upstream. |
+| `.claude/paperwork-version` | Install marker. Used by `/paperwork-update`. |
 
 Slash commands available in your instance:
 
-- `/new`: adds a direct report or partner and scaffolds their directory
 - `/sod` and `/eod`: start and end of day routines
-- `/sync`: routes meeting notes to the right place
+- `/sync`: routes meeting notes to the right place, scaffolds new people as they come up
+- `/prep`: prep for a 1-on-1 or recurring meeting
 - `/weekly`: drafts a weekly update from the week's activity
 - `/think`: open-ended thinking partner mode
-- `/prep`: prep for an upcoming 1-on-1 or meeting
+- `/new`: adds a direct report or partner and scaffolds their directory
+- `/health`: team health snapshot
+- `/prune`: living-system maintenance
 - `/paperwork-update`: pull opt-in updates from upstream Paperwork Setup
 - `/paperwork-setup`: re-run the configuration wizard against an existing install
 
-Optional commands appear only if your interview answers warrant them.
+Optional commands (`/log`, `/review`, `/coach`) appear only if your interview answers warrant them.
+
+## Tools and integrations
+
+The wizard asks you what tools you use. For each one, you tell it whether you already have a Claude integration installed, want one wired now, or want to leave it as manual reference. After install, `references/integrations.md` lists every tool you named with copy-pasteable setup steps and a one-liner of what you get when the wiring lands. When `/prep` or `/sync` hits a tool that is still manual, it points you at that file instead of silently degrading.
 
 ## How to update
 
 Paperwork Setup ships changes upstream over time: new commands, better question banks, refined references. Your instance is yours to edit, so updates are opt-in, never forced.
 
-Run `/paperwork-update` inside your instance. It will:
+Run `/paperwork-update` inside your instance. It walks each change as a yes / skip card, applies opt-ins via a three-way merge so your local edits survive, and updates the install marker on clean exit. Re-running picks up where you left off. It never touches your `README.md`, `CLAUDE.md`, or anything under `people/` or `meetings/`.
 
-1. Read the SHA in `.claude/paperwork-version` to know what version you are on.
-2. Fetch the latest upstream SHA from `nobodyiscertain/paperwork-setup`.
-3. Diff the two and group changes into cards: one card per user-facing file or coherent feature.
-4. Walk the cards interactively, one at a time. For each, you get a short summary and a Y / Skip / Quit prompt. Default is Skip.
-5. Three-way merge any change you accept against your edits, so your customizations survive.
-6. Write the new SHA to the install marker when the wizard finishes cleanly.
-
-`/paperwork-update` is idempotent. Re-running picks up where you left off. It never touches your `README.md`, `CLAUDE.md`, or anything under `people/` or `meetings/`. Those are yours.
-
-To reconfigure an existing install (turn the dashboard on, add new commands, change your manager profile), run `/paperwork-setup`. It runs the wizard again against your current files instead of starting from scratch.
+To reconfigure an existing install (turn the dashboard on, add new commands, change your manager profile), run `/paperwork-setup`. It runs the wizard against your current files instead of starting from scratch.
 
 ## How it actually works
 

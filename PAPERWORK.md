@@ -132,11 +132,7 @@ Use `{{placeholder}}` tokens in the templates below as a model for what to subst
 [repo-root]/
 ├── README.md                    # Human-readable orientation (always; see Step 11)
 ├── CLAUDE.md                    # AI instructions (always)
-├── people/                      # Direct reports (if they have reports)
-│   └── example-person/          # One example for them to duplicate
-│       ├── profile.md
-│       ├── one-on-ones.md
-│       └── feedback.md
+├── people/                      # Direct reports (if they have reports). Empty at install. `/new` and the optional bulk bootstrap create subdirectories.
 ├── journal/                     # Daily thinking, /think and /eod output
 │   └── [current year]/
 ├── decisions/                   # Auto-created on first /eod route
@@ -171,7 +167,9 @@ Use `{{placeholder}}` tokens in the templates below as a model for what to subst
 - `weeklies/` if they write weekly updates
 - `dashboard/` if they said yes to a visual dashboard
 
-Create an example person directory with realistic placeholder content (see Step 7). One example is enough. They'll duplicate it.
+Do not pre-create any person, partner, or leadership directories. Those scaffold lazily through `/new` (one at a time) or through the optional bulk bootstrap offered after the interview (see Step 13a). The system handles the file work; the user handles the people.
+
+The per-person template shapes (`profile.md`, `one-on-ones.md`, `feedback.md`) live in Step 8 as references for `/new` to use when it creates a directory. They are not written to disk during install.
 
 ### Step 2: Generate CLAUDE.md
 
@@ -331,7 +329,7 @@ The single source of truth for any kind of prep. 1-on-1, recurring meeting, peer
 2. **Read context.**
    - For a person: `profile.md`, three most recent `one-on-ones.md` entries, `feedback.md`.
    - For a recurring meeting: `meetings/recurring/[slug]/profile.md` and the most recent log entries.
-3. **Pull recent activity (last {{one_on_one_cadence_days}} days).**
+3. **Pull recent activity (last {{one_on_one_cadence_days}} days).** If a named tool is marked "manual reference only" in CLAUDE.md's tools table, do not silently skip it. Note inline: "`[tool]` isn't wired. Setup steps in `references/integrations.md`." Then carry on with whatever sources are available.
 {{#if tool_work_tracker}}   - From {{tool_work_tracker}}: issues touched, status changes, comments by or about the person or relevant to the meeting topic. {{tool_work_tracker_integration_call}}{{/if}}
 {{#if tool_code_tracker}}   - From {{tool_code_tracker}}: PRs opened, reviewed, merged. {{tool_code_tracker_integration_call}}{{/if}}
 {{#if tool_meeting_recorder}}   - From {{tool_meeting_recorder}}: any transcripts involving this person or meeting not yet logged. {{tool_meeting_recorder_integration_call}}{{/if}}
@@ -377,7 +375,7 @@ Bootstrap a new person's directory.
    - `profile.md`
    - `one-on-ones.md`
    - `feedback.md`
-   `/review` will lazily add `reviews.md` to the directory when it first writes a draft. Use the example-person templates as the structure.
+   `/review` will lazily add `reviews.md` to the directory when it first writes a draft. Use the per-person template shapes from Step 8 (profile, one-on-ones, feedback) as the structure.
 3. Ask for the basics: title, start date, role context. 30% complete is fine.
 4. If the user named the same person in other people's notes already, surface those references so they don't lose context.
 {{#if has_git}}5. Commit: "add [first-last] ([type])"{{/if}}
@@ -545,7 +543,7 @@ Start of day briefing.
 3. **Carry-overs from yesterday.** Read `journal/[year]/[yesterday].md`. Surface anything still open.
 4. **Today's focus.** Ask {{manager_first_name}} for their one priority today if not obvious.
 5. **Write the briefing** to `journal/[year]/[today].md` under a `## SOD` header. Append, never overwrite. Include today's schedule with links to each prep card (e.g., `[YYYY-MM-DD]-prep-[slug].md`), carry-overs, and the named focus.
-{{#if has_dashboard}}6. **Refresh the dashboard.** Run `python dashboard/render.py`. The dashboard reads from the briefing you just wrote and the prep cards /prep produced.{{/if}}
+{{#if has_dashboard}}6. **Refresh the dashboard.** Run `python dashboard/render.py --no-open`. The flag is important: `/sod` runs daily and the user does not want a new browser window each morning. The dashboard reads from the briefing you just wrote and the prep cards /prep produced; the user refreshes the existing browser tab.{{/if}}
 {{#if has_git}}7. Commit: "sod [today]"{{/if}}
 ```
 
@@ -592,20 +590,27 @@ TEMPLATE: .claude/commands/sync.md (conditional: meeting recorder)
 Batch process recorded meetings.
 
 1. **Pull unlogged meetings** from {{tool_meeting_recorder}} since the last sync. {{tool_meeting_recorder_integration_call}}
-2. **Route each one:**
+
+2. **Lazy-create structure for anything new.** Before routing, scan each meeting for surfaces that don't exist yet on disk. {{manager_first_name}} owns the decision; you own the file work.
+
+   - **Recurring meeting whose folder doesn't exist.** If a meeting looks recurring (title appears more than once in recent history, or a calendar event marked recurring) and `meetings/recurring/[slug]/` does not exist, infer a slug from the title (lowercase, hyphenate, strip filler words like "weekly", "sync" unless they make the slug clearer). Ask {{manager_first_name}} once: "I haven't seen `[title]` before. Want me to track it as a recurring meeting at `meetings/recurring/[slug]/`? [Y / one-off / skip]". On `Y`, create the folder with a stub `profile.md` (title, cadence guess, attendees list, blank context section) and an empty `log.md`. On `one-off`, route this instance to `meetings/[year]/`. On `skip`, drop the meeting from this sync run.
+   - **First-time partner or leadership name in a transcript.** If a 1-on-1 transcript names a person who isn't in `people/`{{#if has_partners}}, `partners/`{{/if}}{{#if has_leadership}}, or `leadership/`{{/if}}, and the conversational context implies an ongoing working relationship, ask once: "I saw `[name]` come up in [meeting]. Want me to scaffold a folder for them? [partner / leadership{{#unless has_partners}} (start tracking partners){{/unless}} / skip]". On a yes, call `/new` non-interactively with the chosen relationship type and a best-guess title. On `skip`, append the mention to the relevant existing person's `feedback.md` only.
+   - **Never ask the same question twice in one sync run.** Track answers across the meetings being processed. If two transcripts mention the same new name, ask once and apply the answer to both.
+
+3. **Route each one:**
    - 1-on-1: find the person, summarize the meeting, prepend to their `one-on-ones.md` with date and structured sections (Discussion, Signals, Action items, Notes for next time). Cross-reference any other names mentioned in the conversation to those people's `feedback.md`.
    - Recurring meeting: write or append to `meetings/recurring/[slug]/log.md`.
    - One-off: write to `meetings/[year]/[YYYY-MM-DD]-[slug].md`.
-3. **Surface only the slim set into `inbox.md`.** Append a single `## [today] sync output` block to the bottom of `inbox.md`. The inbox is for items that need a human decision. It contains ONLY:
+4. **Surface only the slim set into `inbox.md`.** Append a single `## [today] sync output` block to the bottom of `inbox.md`. The inbox is for items that need a human decision. It contains ONLY:
    - **Candidate action items**: anything {{manager_first_name}} appears to have committed to but hasn't opted into tracking yet.
-   - **Uncertain items**: ambiguous things /sync couldn't auto-resolve (name match failure, owner unclear, etc).
-   - **Open promises** (from step 3a below).
+   - **Uncertain items**: ambiguous things /sync couldn't auto-resolve (name match failure that wasn't promoted in step 2, owner unclear, etc).
+   - **Open promises** (from step 4a below).
 
    Feedback notes and signal flags are written through to the destination file directly (the person's `feedback.md` and `one-on-ones.md`). They are NOT mirrored into `inbox.md`. If {{manager_first_name}} wants to verify what was auto-written, they read the destination file.
 
    If all three sub-sections would be empty, skip writing the block entirely.
 
-3a. **Scan for open promises.** For each person whose 1-on-1 was processed today, scan their `one-on-ones.md` for unchecked {{manager_first_name}}-owned items: `- [ ] [{{manager_first_name}}] ...` lines, lines under a `**{{manager_first_name}}'s commitments:**` heading, or generic `- [ ]` lines whose surrounding context implies {{manager_first_name}} owns them. Skip lines clearly owned by others.
+4a. **Scan for open promises.** For each person whose 1-on-1 was processed today, scan their `one-on-ones.md` for unchecked {{manager_first_name}}-owned items: `- [ ] [{{manager_first_name}}] ...` lines, lines under a `**{{manager_first_name}}'s commitments:**` heading, or generic `- [ ]` lines whose surrounding context implies {{manager_first_name}} owns them. Skip lines clearly owned by others.
 
    Append every match to today's inbox block under a `### Open promises (review)` heading, one per line, in the format:
 
@@ -615,8 +620,10 @@ Batch process recorded meetings.
 
    The `path:line` reference lets `/eod` navigate back to the source so it can edit the checkbox in place. If no matches, omit the heading.
 
-4. **Surface "needs your eyes" inline.** After processing, also list in chat anything that needs {{manager_first_name}}'s judgment right now: a flag, an unclear action item, a name they didn't recognize. The inbox block is the durable safety net; this is the immediate prompt.
-{{#if has_git}}5. Commit: "sync [today]"{{/if}}
+5. **Surface "needs your eyes" inline.** After processing, also list in chat anything that needs {{manager_first_name}}'s judgment right now: a flag, an unclear action item, a name they didn't recognize. The inbox block is the durable safety net; this is the immediate prompt.
+
+6. **Point at `references/integrations.md` if anything fell back.** If a tool {{manager_first_name}} named in the interview is marked "manual reference only" and the meeting would have benefitted from a live integration (the recorder couldn't pull the transcript, the work tracker couldn't be queried for context, etc.), end the chat output with a one-liner: "Heads-up: `[tool]` is still on manual. The wiring steps live in `references/integrations.md`." Don't silently degrade. Don't repeat the nudge inside the same sync run.
+{{#if has_git}}7. Commit: "sync [today]"{{/if}}
 ```
 
 ```markdown
@@ -745,19 +752,66 @@ Include:
 - Common deflection responses and how to handle them
 - A few example openers for different feedback types
 
-### Step 8: Generate Template Files
+### Step 7a: Generate Integrations Doc
 
-For the example person directory, create properly formatted files with realistic placeholder content. The user duplicates this for each real person. Generic placeholder beats blank.
+Create `references/integrations.md`. This is the single page the user (and the AI agent) reference when a tool isn't wired up yet. The Tools table in `CLAUDE.md` says *whether* a tool is wired; `integrations.md` says *how* to wire one.
+
+In Part 3 of the interview the user named each tool and answered whether they already have a Claude integration installed, want one wired, or want to leave it as manual reference. For every tool they named, generate a section in `integrations.md`. Order matches the Tools table.
+
+Each section has the same shape:
 
 ```markdown
-TEMPLATE: people/example-person/profile.md
----
-# Sarah Chen
+## {{Tool Name}}
 
-**Title:** {{role_example_title}}
-**Start Date:** 2024-08-15
-{{#if tool_work_tracker}}**{{tool_work_tracker}} handle:** sarah.chen{{/if}}
-{{#if tool_code_tracker}}**{{tool_code_tracker}} handle:** sarahchen{{/if}}
+**What you get when this is wired:** {{one_liner_specific_to_what_paperwork_commands_use_it_for}}
+
+**Status:** Wired / Wants wiring / Manual reference only.
+
+**Setup**
+
+{{copy_pasteable_install_command_or_link_block}}
+```
+
+Use these authoritative setup blocks for the standard tools. Pick the line that matches what the user named.
+
+- **Granola** (meeting recorder): `claude mcp add granola`. Docs: <https://github.com/granola-ai/mcp> (or whatever the current Granola MCP repo is at install time). What you get: `/sync` can read transcripts directly instead of asking the user to paste them.
+- **Datadog** (observability or HR data, rare): use the Datadog MCP if their org has one installed, or fall back to manual reference. What you get: live ops context inside `/prep` for engineering managers.
+- **Linear** (work tracker): `claude mcp add linear`. Docs: <https://linear.app/docs/mcp>. What you get: `/prep` pulls issues by assignee; `/eod` can stage personal-task items into a Linear team they own.
+- **GitHub** (code tracker): install the `gh` CLI from <https://cli.github.com>, run `gh auth login`. The commands shell out to `gh`. What you get: PR activity surfaces inside `/prep` and `/weekly`.
+- **Google Calendar** (calendar): `claude mcp add google-calendar`. Docs: <https://github.com/googleapis/google-cloud-mcp> (use whichever Google Calendar MCP is current at install time). What you get: `/sod` and `/prep` pull today's schedule and event metadata.
+- **Slack** (comms): `claude mcp add slack`. Docs: <https://github.com/modelcontextprotocol/servers/tree/main/src/slack>. What you get: `/health` and `/prep` can cite recent threads when context is thin; `/sync` can attach Slack context to a 1-on-1 entry.
+
+For any tool the user named that isn't in this list, write a generic block:
+
+```markdown
+**Setup**
+
+Most tools work in three shapes:
+
+1. **Native Claude integration (MCP server).** Search `{{tool_name}} mcp server` in your agent's marketplace, or check <https://github.com/modelcontextprotocol/servers> for community ones. If one exists, install it and add credentials.
+2. **CLI wrapper.** If the tool has a CLI (often the case for engineering tools), install it and let Claude shell out. List the install URL inline.
+3. **Manual reference only.** Leave the row at "Manual reference only" in `CLAUDE.md`'s Tools table. The commands will note inline when they fall back; the user pastes context when needed.
+
+Pick the shape that matches the user's appetite for setup work. Don't push them past their stated comfort zone.
+```
+
+Close the file with a one-line index at the top: "If a Paperwork command says a tool is manual, this file is where you wire it up. Each section ends with what the commands gain when wired."
+
+When `/prep` or `/sync` hits a tool that is still marked "manual reference only" in the Tools table, it points the user at this file by name instead of silently degrading. The pointer behavior is spec'd inside the `/prep` and `/sync` templates above.
+
+### Step 8: Per-Person Template Shapes
+
+These templates are NOT written to disk at install time. They define the shape `/new` uses when the user creates a person, and the shape the optional bulk bootstrap uses when it runs `/new` over a list. Generic placeholder beats blank when `/new` fires; the manager fills in real content over time.
+
+```markdown
+TEMPLATE: people/[first-last]/profile.md
+---
+# {{person_full_name}}
+
+**Title:** {{person_title}}
+**Start Date:** {{person_start_date}}
+{{#if tool_work_tracker}}**{{tool_work_tracker}} handle:** {{person_work_tracker_handle}}{{/if}}
+{{#if tool_code_tracker}}**{{tool_code_tracker}} handle:** {{person_code_tracker_handle}}{{/if}}
 
 ## Notes
 
@@ -767,9 +821,9 @@ Free-form. Working style, strengths, growth areas, personal context, projects, a
 Don't generate `2026-plan.md`, `goals.md`, or any other yearly aspirational template per person. Profile + one-on-ones + feedback is the whole kit. If a manager wants per-person planning artifacts later, they can add them by hand.
 
 ```markdown
-TEMPLATE: people/example-person/one-on-ones.md
+TEMPLATE: people/[first-last]/one-on-ones.md
 ---
-# 1-on-1 Notes. Sarah Chen
+# 1-on-1 Notes. {{person_full_name}}
 
 New entries go at the top.
 
@@ -790,16 +844,15 @@ New entries go at the top.
 
 **Action items ({{manager_first_name}}'s):**
 - [ ] [What you owe them]
-- [ ] Send Sarah the offer-letter template before Friday
 
 **Notes for next time:**
 - [Threads to pick up]
 ```
 
 ```markdown
-TEMPLATE: people/example-person/feedback.md
+TEMPLATE: people/[first-last]/feedback.md
 ---
-# Feedback Log. Sarah Chen
+# Feedback Log. {{person_full_name}}
 
 ## Feedback Given
 
@@ -821,10 +874,10 @@ Only if they said they want a visual dashboard.
 This keeps `/prep` as the single source of truth. If the prep logic changes, only `/prep` changes. The dashboard automatically reflects it.
 
 **Workflow:**
-1. Manager runs `/sod`. /sod runs /prep for each calendar event, writes the briefing.
-2. (Optionally) Manager runs `/health`. Health snapshot saved to journal.
-3. Manager runs `python dashboard/render.py`. Reads today's journal files, renders HTML.
-4. Manager opens `dashboard/index.html` in browser.
+1. At install time, the wizard runs `python dashboard/render.py` once. That writes `index.html` and opens it in the user's default browser, so the dashboard is visible the moment the install handoff lands.
+2. Manager runs `/sod` each morning. `/sod` runs `/prep` for each calendar event, writes the briefing, then refreshes the dashboard via `python dashboard/render.py --no-open` (so the existing tab updates without spawning a second window).
+3. Anytime the manager wants the team snapshot, they run `/health`. The snapshot lands in `journal/`; the dashboard reads it on the next refresh.
+4. The manager keeps the dashboard tab open. The system refreshes it; the manager hits reload when they want fresh data.
 
 Generate a `dashboard/` directory with three files: `render.py`, `style.css`, and a brief `README.md` explaining the customization story.
 
@@ -838,10 +891,13 @@ HTML. Does not compute anything on its own. If you want the dashboard to
 show something new, generate it through a command (so it stays in one
 place) and add a section here that reads the resulting file.
 
-Run: python dashboard/render.py
-Then open dashboard/index.html in your browser.
+By default, running this script writes index.html and opens it in your
+default browser. Pass --no-open when running from inside another command
+(/sod refreshes the dashboard daily and should not pop a window each time).
 """
 
+import sys
+import webbrowser
 from pathlib import Path
 from datetime import date
 import html
@@ -908,6 +964,8 @@ def render() -> str:
 if __name__ == "__main__":
     OUT.write_text(render())
     print(f"Wrote {OUT}")
+    if "--no-open" not in sys.argv:
+        webbrowser.open(OUT.as_uri())
 ```
 
 ```markdown
@@ -915,7 +973,9 @@ TEMPLATE: dashboard/README.md
 ---
 # Dashboard
 
-`python render.py` writes `index.html`. Open that file in a browser.
+You should not need to run this by hand. The dashboard auto-opens after install, and `/sod` refreshes it each morning behind the scenes.
+
+If you ever do want to refresh manually, `python render.py` writes `index.html` and opens it in your browser. Add `--no-open` if you just want to refresh the file without popping a window.
 
 The dashboard is intentionally plain. It reads what commands like `/sod`, `/prep`, and `/health` wrote, and surfaces it in one view. It does not compute anything on its own.
 
@@ -927,12 +987,11 @@ The default styling is whatever Claude chose. It's intentionally restrained so y
 
 ## Refresh cycle
 
-The dashboard is a snapshot of what's on disk. Run the commands first, then re-render.
+The dashboard is a snapshot of what's on disk. The commands write the markdown; the dashboard just reads it.
 
 Typical flow:
-1. Morning: run `/sod`. (This also runs `/prep` for each calendar event.)
-2. Anytime: run `/health` for the team snapshot.
-3. Then: `python dashboard/render.py`, refresh the browser.
+1. Morning: run `/sod`. (Runs `/prep` for each calendar event and refreshes the dashboard.)
+2. Anytime: run `/health` for the team snapshot, then refresh the browser tab.
 
 ## Adding a section
 
@@ -1000,13 +1059,13 @@ Claude is your copilot for managing {{report_count}} direct reports{{#if has_par
 
 | Directory | What lives there |
 |---|---|
-| `people/` | One folder per direct report. `profile.md`, `one-on-ones.md`, `feedback.md`. |
-{{#if has_partners}}| `partners/` | Cross-functional partners (PMs, design leads, anyone you sync with regularly). Same shape as `people/`. |
-{{/if}}{{#if has_leadership}}| `leadership/` | Your manager, skip-level, anyone above you you want to track. Same shape as `people/`. |
+| `people/` | One folder per direct report. Created lazily by `/new` and `/sync`. Each contains `profile.md`, `one-on-ones.md`, `feedback.md`. |
+{{#if has_partners}}| `partners/` | Cross-functional partners (PMs, design leads, anyone you sync with regularly). Same shape as `people/`, lazy-created the same way. |
+{{/if}}{{#if has_leadership}}| `leadership/` | Your manager, skip-level, anyone above you you want to track. Same shape as `people/`, lazy-created the same way. |
 {{/if}}| `journal/[year]/` | Daily notes. `/think` and `/eod` write here. Prep cards also land here. |
 | `decisions/[year]/` | Significant decisions worth coming back to. Auto-created on first `/eod` route. |
 | `bragdoc/[year]/` | Weekly wins capture. Auto-created on first `/eod` route. |
-| `references/` | Question banks, signal framework, success framework, feedback guide. Edit as your thinking evolves. |
+| `references/` | Question banks, signal framework, success framework, feedback guide, integrations guide. Edit as your thinking evolves. |
 {{#if records_meetings}}| `meetings/[year]/` | Non-1-on-1 meeting notes, routed by `/sync`. |
 {{/if}}{{#if writes_weeklies}}| `weeklies/[year]/` | Weekly update drafts from `/weekly`. |
 {{/if}}{{#if has_dashboard}}| `dashboard/` | The HTML dashboard renderer. See the README inside that folder. |
@@ -1023,13 +1082,20 @@ You can add or remove commands later by re-running `/paperwork-setup`.
 
 ## Your first week
 
-You don't have to do all of this. Pick what's useful.
+Three scenarios. You do not have to copy or duplicate anything; the commands handle file work.
 
-1. **Today (5 minutes).** Open `CLAUDE.md` and skim it. If anything misrepresents how you actually manage, edit it. Claude reads this file every session, so the truer it is, the better the prep gets.
-2. **Before your next 1-on-1 (10 minutes).** Duplicate `people/example-person/` into `people/[first-last]/` for two or three reports. Fill in `profile.md` with whatever you already know. 30% complete is fine. Raw notes beat blank.
-{{#if has_dashboard}}3. **Take the dashboard for a spin (optional).** Run the dashboard renderer (see `dashboard/README.md`) and open `dashboard/index.html`. Bookmark it.
-{{/if}}4. **After each 1-on-1.** Either let `/sync` pick it up automatically (if you record meetings) or run `/log [name]`. Don't worry about format. The system makes sense over time.
-5. **End of the first week.** Run `/health` and see if it surfaces anything useful. If it doesn't, edit `references/signal-framework.md` to match what you actually watch for, then try again.
+**Monday morning. `/sod`.**
+You open Claude and run `/sod`. It reads your calendar, runs `/prep` for every meeting on the day, writes a briefing into `journal/`{{#if has_dashboard}}, and refreshes the dashboard tab{{/if}}. The first time `/sod` runs, prep cards will be thin because there are no prior 1-on-1 notes to pull from. By week two, they get useful.
+
+{{#if records_meetings}}**Midweek. `/sync` after a 1-on-1.**
+You finish a 1-on-1. Your meeting recorder ({{tool_meeting_recorder}}) has the transcript. You run `/sync`. It routes the transcript into the right person's `one-on-ones.md`, cross-references anyone else mentioned, and surfaces only what needs your eyes in `inbox.md`. If the person was new to you, `/sync` asks once whether to scaffold them a folder. Same for any unfamiliar recurring meeting that shows up in the transcript queue.{{/if}}{{#unless records_meetings}}**Midweek. `/log [name]` after a 1-on-1.**
+You finish a 1-on-1. You run `/log [first-last]`, dump your notes or talk through what happened, and Claude structures it and prepends to that person's `one-on-ones.md`. The first time you log on someone who is not in `people/` yet, Claude runs `/new` for them on the spot.{{/unless}}
+
+{{#if writes_weeklies}}**Friday. `/weekly`.**
+You run `/weekly`. It reads the week's 1-on-1 notes, pulls activity from {{tool_work_tracker}}{{#if tool_code_tracker}} and {{tool_code_tracker}}{{/if}}, and drafts an update in your voice. You read it, edit, send.{{/if}}{{#unless writes_weeklies}}**Friday. `/health`.**
+You run `/health` for a team snapshot. Who is green, yellow, red. Whose 1-on-1 cadence has slipped. Open promises you owe. The output writes to `journal/` and reads back through {{#if has_dashboard}}the dashboard{{/if}}{{#unless has_dashboard}}Claude{{/unless}} whenever you want to glance at it.{{/unless}}
+
+You can also call `/think [topic]` whenever you want a thinking partner, `/prep [name]` before any 1-on-1, and `/new [first-last]` whenever you want to add a person without waiting for `/sync` to catch them.
 
 ## What to expect
 
@@ -1072,42 +1138,50 @@ Record the upstream SHA this install was generated from. `/paperwork-update` rea
 
 The file is plain text, single line, two whitespace-separated fields. The user can `cat` it. The SHA is the source of truth; the timestamp is informational.
 
+### Step 12a: Optional Bulk Bootstrap
+
+Offer this once, after the install marker is written and before the handoff. Never require it. The wizard must be able to end without asking for names.
+
+Ask: "Want to scaffold folders for your team now, or wait and add people as they come up? I can take a list of names and roles and create everything in one shot, or you can skip and use `/new [first-last]` whenever you're ready."
+
+Three branches:
+
+- **Skip.** Move to Step 13. Don't push.
+- **Run `/new` once now.** Walk them through a single `/new` interactively so they see what it does. Then move to Step 13.
+- **Bulk bootstrap.** Ask them to paste a list, one per line, in the shape `Full Name, title, relationship` where relationship is `report`, `partner`, or `leadership`. The relationship column is optional and defaults to `report`. Parse the list, then call `/new` non-interactively for each entry: create the directory under the right relationship type, fill `profile.md`'s title field with the title they provided, leave the rest of profile blank for them to fill in later. Don't ask follow-up questions per person; the point of bulk is speed.
+
+After bulk bootstrap, print a one-line summary: "Scaffolded {{N}} people across {{relationship_types_used}}. Files are at `people/`{{#if has_partners}} and `partners/`{{/if}}{{#if has_leadership}} and `leadership/`{{/if}}. Fill in profiles whenever; `/sync` and `/prep` work fine on empty profiles." Then continue to Step 13.
+
+The bulk bootstrap call signature inside the wizard is just running `/new` non-interactively over the parsed list. No new generation logic lives here that isn't already in `/new`.
+
 ### Step 13: The Handoff
 
-Tell them what was built, what's auto-populated, and what they need to fill in.
+The user just spent 20 minutes answering questions. The handoff should feel like the system already works, not like it just generated a pile of homework. {{#if has_dashboard}}Open the dashboard for them as part of this step. Do not ask them to run a Python command.{{/if}}
 
-Use this template, adapted to what was actually generated:
+{{#if has_dashboard}}Before printing the handoff message, run the dashboard renderer once:
 
 ```
-Your management system is ready. Here's where things stand.
-
-**Auto-populated, ready to use:**
-- CLAUDE.md with your philosophy, success framework, and tool map
-- Slash commands wired to {{tool_list}}
-- Question banks weighted toward {{top_pain_points}}
-- Signal framework derived from what you said you watch for
-- Success framework with your stated criteria
-- Example person directory ({{example_person_path}})
-{{#if has_dashboard}}- Dashboard renderer at dashboard/render.py{{/if}}
-{{#if has_git}}- Git repo initialized{{/if}}
-
-**On you, in order:**
-1. **Now (5 min).** Open CLAUDE.md and read it. If anything misrepresents how you actually manage, edit it. The system reads from this file every session.
-2. **Before your next 1-on-1 (10 min).** Duplicate {{example_person_path}} to people/[first-last]/ for your top three reports. Fill in profile.md with whatever you know. 30% complete is fine.
-3. **Tool wiring (optional, 10 min).** Open the Tools table in CLAUDE.md. For any tool where you have a Claude integration installed, the commands will use it automatically. For anything else, the system falls back to manual prompts. You can wire integrations later.
-4. **First week.** After each 1-on-1, run /{{primary_log_command}} [name]. Don't worry about format. Raw notes compound.
-5. **End of first week.** Run /health and see if it surfaces anything useful. If not, edit references/signal-framework.md and try again.
-{{#if has_dashboard}}6. **Dashboard (optional).** Run `python dashboard/render.py` and open `dashboard/index.html`. Bookmark it.{{/if}}
-
-**What to expect:**
-- Week 1: feels like extra typing. It is.
-- Week 2: /prep starts pulling useful context.
-- Month 1: /review and /weekly become a real time-saver.
-
-If something's off, run `/paperwork-setup` to reshape your install (add a report, edit a command, change a global setting). To pull updates from upstream Paperwork later, run `/paperwork-update`. The system is meant to evolve.
-
-If you want hands-on help getting it dialed in, there's a coaching option in the README.
+python dashboard/render.py
 ```
+
+That writes `dashboard/index.html` and opens it in their default browser. If `webbrowser.open` fails (rare, headless environments), fall back to printing the file path so they can open it manually.
+{{/if}}
+
+Then print this message, adapted to what was actually generated. Three things, not five. Keep it tight.
+
+```
+Built. {{installed_count}} commands, {{references_count}} reference files{{#if has_dashboard}}, and a dashboard that just opened in your browser{{/if}}{{#if has_git}}, all in a fresh git repo{{/if}}.
+
+Three things next:
+
+1. **Wire your stack** when you have time. See `references/integrations.md` for setup steps for each tool you named. Anything you skip stays manual; the commands tell you when they fall back, they don't silently degrade.
+2. **Run `/sod` tomorrow morning.** That's the daily starting point. It reads your calendar, runs `/prep` for each meeting, and writes a briefing{{#if has_dashboard}} (and refreshes the dashboard){{/if}}.
+3. **Add people as they come up.** Either let `/sync` scaffold them when their name shows up in a transcript, or call `/new [first-last]` directly. {{#if writes_weeklies}}Hit `/weekly` Friday. {{/if}}{{#unless writes_weeklies}}Hit `/health` Friday for a team snapshot. {{/unless}}
+
+`CLAUDE.md` and `README.md` at the repo root explain the rest. Both are yours to edit. Run `/paperwork-setup` later if you want to reshape anything.
+```
+
+If `/paperwork-update` will be relevant later, it's documented in the user's README, not in the handoff. Don't front-load admin commands.
 
 ---
 
