@@ -847,12 +847,18 @@ TEMPLATE: dashboard/render.py
 """Thin dashboard renderer for {{manager_first_name}}'s management system.
 
 Reads markdown files that /sod, /prep, and /health wrote. Renders them as
-HTML. Does not compute anything on its own. If you want the dashboard to
-show something new, generate it through a command (so it stays in one
-place) and add a section here that reads the resulting file.
+one self-contained HTML page: CSS inlined, SVG mark and favicon inlined,
+no external assets required to view. Does not compute anything on its
+own. If you want the dashboard to show something new, generate it
+through a command (so the logic stays in one place) and add a section
+function here that reads the resulting file.
 
 Run: python dashboard/render.py
 Then open dashboard/index.html in your browser.
+
+Design DNA lifted from nobodyiscertain/paperwork: warm off-white surface,
+Verge-style editorial type, acid-mint / ultraviolet / hot-coral /
+signal-yellow accents, dark-mode aware via prefers-color-scheme.
 """
 
 from pathlib import Path
@@ -860,61 +866,170 @@ from datetime import date
 import html
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = Path(__file__).resolve().parent / "index.html"
-STYLE = "style.css"
+HERE = Path(__file__).resolve().parent
+OUT = HERE / "index.html"
+STYLE_FILE = HERE / "style.css"
+
+
+# Three stacked papers: the Paperwork mark. Coral on top of yellow on top
+# of mint. Same shape used inline in <body> and as the favicon so the
+# generated HTML stays a single self-contained file.
+LOGO_SVG = (
+    '<svg class="logo-mark" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
+    '<rect x="9" y="3" width="20" height="22" rx="1" fill="#FF6B6B"/>'
+    '<rect x="6" y="6" width="20" height="22" rx="1" fill="#FFD60A"/>'
+    '<rect x="3" y="9" width="20" height="22" rx="1" fill="#3CFFD0"/>'
+    '</svg>'
+)
+
+FAVICON_LINK = (
+    '<link rel="icon" type="image/svg+xml" href=\'data:image/svg+xml;utf8,'
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'
+    '<rect x="9" y="3" width="20" height="22" rx="1" fill="%23FF6B6B"/>'
+    '<rect x="6" y="6" width="20" height="22" rx="1" fill="%23FFD60A"/>'
+    '<rect x="3" y="9" width="20" height="22" rx="1" fill="%233CFFD0"/>'
+    '</svg>\'>'
+)
 
 
 def read_file(path: Path) -> str:
     return path.read_text() if path.exists() else ""
 
 
-def section(title: str, body_md: str, empty_note: str = "") -> str:
+def card_section(title: str, body_md: str, accent: str, empty_note: str) -> str:
+    """Single-card section: color-striped header + one card wrapping the
+    body markdown as a <pre>. `accent` ∈ {mint, violet, coral, yellow}."""
+    title_h = html.escape(title)
     if not body_md.strip():
-        body_md = empty_note or f"No content yet. Run the relevant command, then re-render."
-    return f'<section><h2>{html.escape(title)}</h2><pre>{html.escape(body_md)}</pre></section>'
+        prompt = html.escape(empty_note)
+        return (
+            f'<section class="section">'
+            f'<div class="section-stripe {accent}"></div>'
+            f'<h2>{title_h}</h2>'
+            f'<div class="card card-empty"><p>{prompt}</p></div>'
+            f'</section>'
+        )
+    return (
+        f'<section class="section">'
+        f'<div class="section-stripe {accent}"></div>'
+        f'<h2>{title_h}</h2>'
+        f'<div class="card"><pre>{html.escape(body_md)}</pre></div>'
+        f'</section>'
+    )
 
 
 def today_section() -> str:
     today = date.today().isoformat()
     briefing = read_file(ROOT / "journal" / today[:4] / f"{today}.md")
-    return section("Today", briefing, "No briefing yet. Run /sod to generate one.")
+    return card_section(
+        "Today's briefing",
+        briefing,
+        accent="mint",
+        empty_note="No briefing yet. Run /sod to generate one.",
+    )
 
 
 def prep_cards_section() -> str:
     today = date.today().isoformat()
     year_dir = ROOT / "journal" / today[:4]
-    if not year_dir.exists():
-        return section("Prep cards (today)", "", "No prep cards yet. /sod runs /prep for today's calendar.")
-    cards = sorted(year_dir.glob(f"{today}-prep-*.md"))
+    cards = sorted(year_dir.glob(f"{today}-prep-*.md")) if year_dir.exists() else []
     if not cards:
-        return section("Prep cards (today)", "", "No prep cards for today yet.")
-    parts = []
+        return card_section(
+            "Meeting prep",
+            "",
+            accent="violet",
+            empty_note="No prep cards yet. /sod runs /prep for today's calendar.",
+        )
+    sub_cards = []
     for card in cards:
         slug = card.stem.replace(f"{today}-prep-", "")
-        parts.append(f"<h3>{html.escape(slug)}</h3><pre>{html.escape(card.read_text())}</pre>")
-    return f'<section><h2>Prep cards (today)</h2>{"".join(parts)}</section>'
+        title = slug.replace("-", " ").title()
+        sub_cards.append(
+            f'<div class="card card-sub">'
+            f'<h3>{html.escape(title)}</h3>'
+            f'<pre>{html.escape(card.read_text())}</pre>'
+            f'</div>'
+        )
+    count = len(cards)
+    sub = f'{count} card{"s" if count != 1 else ""} for today'
+    return (
+        f'<section class="section">'
+        f'<div class="section-stripe violet"></div>'
+        f'<h2>Meeting prep</h2>'
+        f'<p class="section-sub">{sub}</p>'
+        f'{"".join(sub_cards)}'
+        f'</section>'
+    )
 
 
 def team_pulse_section() -> str:
     today = date.today().isoformat()
     snapshot = read_file(ROOT / "journal" / today[:4] / f"{today}-health.md")
-    return section("Team pulse", snapshot, "No health snapshot yet. Run /health to generate one.")
+    return card_section(
+        "Team pulse",
+        snapshot,
+        accent="yellow",
+        empty_note="No health snapshot yet. Run /health to generate one.",
+    )
 
 
 # Sections the manager picked in the interview. Add or remove section
-# functions to match.
+# functions to match. Each function returns a complete <section> block
+# (stripe + heading + card[s]) so this list controls page composition
+# top to bottom.
 SECTIONS = [
     {{dashboard_sections_list}}  # e.g., today_section, prep_cards_section, team_pulse_section
 ]
 
 
 def render() -> str:
+    today_iso = date.today().isoformat()
+    today_label = date.today().strftime("%A, %B %-d")
+    style_css = STYLE_FILE.read_text() if STYLE_FILE.exists() else ""
     body = "\n".join(fn() for fn in SECTIONS)
-    return (
+
+    head = (
         '<!doctype html>'
-        f'<html><head><title>Paperwork</title>'
-        f'<link rel="stylesheet" href="{STYLE}"></head>'
-        f'<body><h1>Paperwork</h1>{body}</body></html>'
+        '<html lang="en">'
+        '<head>'
+        '<meta charset="UTF-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1.0">'
+        f'<title>Paperwork · {today_iso}</title>'
+        f'{FAVICON_LINK}'
+        f'<style>{style_css}</style>'
+        '</head>'
+    )
+
+    top_bar = (
+        '<div class="top-bar">'
+        f'<div class="logo">{LOGO_SVG}<span class="logo-text">Paperwork</span></div>'
+        f'<div class="top-date">{today_iso}</div>'
+        '</div>'
+    )
+
+    hero = (
+        '<header class="hero">'
+        '<div class="eyebrow">{{manager_first_name}}\'s management system</div>'
+        f'<h1>{today_label}.</h1>'
+        '<p class="lede">One view of what <code>/sod</code>, <code>/prep</code>, and <code>/health</code> wrote today. '
+        'Open the files in <code>journal/</code> for the raw markdown.</p>'
+        '</header>'
+    )
+
+    closing = (
+        '<footer class="closing">'
+        f'<span class="acid">●</span> PAPERWORK · {today_iso} <span class="acid">●</span>'
+        '</footer>'
+    )
+
+    return (
+        head
+        + '<body><div class="wrap">'
+        + top_bar
+        + hero
+        + body
+        + closing
+        + '</div></body></html>'
     )
 
 
@@ -930,13 +1045,21 @@ TEMPLATE: dashboard/README.md
 
 `python render.py` writes `index.html`. Open that file in a browser.
 
-The dashboard is intentionally plain. It reads what commands like `/sod`, `/prep`, and `/health` wrote, and surfaces it in one view. It does not compute anything on its own.
+The dashboard reads what commands like `/sod`, `/prep`, and `/health` wrote, and surfaces it in one view. It does not compute anything on its own. The rendered HTML is self-contained: CSS is inlined, the logo and favicon are inline SVG, so the file works on its own with no external assets.
+
+## What you'll see
+
+- Top bar with the Paperwork mark on the left and today's date on the right.
+- A hero block with a Verge-style day label (e.g., "Friday, May 16.") and a one-line lede explaining what the page is.
+- Section cards, each with a colored stripe at the top (mint, ultraviolet, coral, yellow) and the rendered markdown wrapped in a card.
+
+The color palette and editorial type are lifted from the [paperwork](https://github.com/nobodyiscertain/paperwork) design system.
 
 ## Customization
 
-The default styling is whatever Claude chose. It's intentionally restrained so you can see your data without distraction. If you want a different look:
-- Edit `style.css` directly.
-- Or ask Claude to restyle it. ("Make it cleaner", "Restyle with a Notion-inspired aesthetic", "Make it look like a Verge article", "Match this screenshot".) Point Claude at whatever inspiration you've got.
+If you want a different look:
+- Edit `style.css` directly. Colors live in `:root` at the top; tweak `--acid-mint`, `--ultraviolet`, etc., to recolor everything in one place.
+- Or ask Claude to restyle it. ("Make it cleaner", "Restyle with a Notion-inspired aesthetic", "Match this screenshot".) Point Claude at whatever inspiration you've got.
 
 ## Refresh cycle
 
@@ -955,20 +1078,265 @@ Don't compute new things in the renderer. Compute them in a command, save the re
 ```css
 TEMPLATE: dashboard/style.css
 ---
-body {
-  font: 14px/1.5 -apple-system, BlinkMacSystemFont, sans-serif;
-  max-width: 980px;
-  margin: 2rem auto;
-  padding: 0 1rem;
-  color: #222;
+/* Paperwork dashboard. Light mode default, dark mode via prefers-color-scheme.
+   Editorial typography with a system font stack so the page renders the same
+   way in any browser without external font requests. Edit freely; render.py
+   inlines this file into the generated HTML at gen time. */
+
+:root {
+  --bg-root: #FAF8F3;
+  --bg-surface: #FFFFFF;
+  --bg-inset: #EEEEE8;
+  --border: #D4D4CC;
+  --border-accent: #B0B0A8;
+
+  --text-primary: #1A1A1A;
+  --text-secondary: #6B6B6B;
+  --text-tertiary: #999999;
+
+  --acid-mint: #3CFFD0;
+  --acid-mint-dim: #1FA886;
+  --ultraviolet: #7B61FF;
+  --ultraviolet-dim: #5740D9;
+  --hot-coral: #FF6B6B;
+  --hot-coral-dim: #C73E3E;
+  --signal-yellow: #FFD60A;
+  --signal-yellow-dim: #B89500;
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06);
+
+  --font-display: ui-serif, Georgia, 'Times New Roman', serif;
+  --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
 }
-h1 { font-size: 1.4rem; margin-bottom: 1.5rem; }
-h2 { font-size: 1.1rem; margin: 2rem 0 0.5rem; border-bottom: 1px solid #eee; padding-bottom: 0.25rem; }
-section { margin-bottom: 2rem; }
-pre { background: #f7f7f7; padding: 1rem; border-radius: 4px; white-space: pre-wrap; }
-table { border-collapse: collapse; width: 100%; }
-th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #eee; }
-th { font-weight: 600; }
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-root: #0A0A0A;
+    --bg-surface: #141414;
+    --bg-inset: #1C1C1E;
+    --border: #2A2A2A;
+    --border-accent: #3A3A3A;
+
+    --text-primary: #EDEDED;
+    --text-secondary: #9A9A9A;
+    --text-tertiary: #666666;
+
+    --acid-mint-dim: #3CFFD0;
+    --ultraviolet-dim: #7B61FF;
+    --hot-coral-dim: #FF6B6B;
+    --signal-yellow-dim: #FFD60A;
+
+    --shadow-card: none;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg-root);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.wrap { max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+
+/* Top bar: logo left, date right. Thin, no border. */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+.logo { display: inline-flex; align-items: center; gap: 10px; color: var(--text-primary); }
+.logo-mark { width: 24px; height: 24px; display: block; flex-shrink: 0; }
+.logo-text {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+.top-date {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.02em;
+}
+
+/* Hero: eyebrow, big day label, lede. The H1 wall is gone. */
+.hero {
+  margin-bottom: 48px;
+  padding-bottom: 32px;
+  border-bottom: 1px solid var(--border);
+}
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--acid-mint-dim);
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+.hero h1 {
+  font-family: var(--font-display);
+  font-size: 44px;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  font-weight: 700;
+  margin: 0 0 16px;
+  color: var(--text-primary);
+}
+.hero .lede {
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  max-width: 68ch;
+  margin: 0;
+}
+
+/* Section: color stripe + heading + cards underneath. */
+.section { margin-bottom: 40px; }
+.section-stripe {
+  height: 4px;
+  width: 64px;
+  border-radius: 2px;
+  margin: 0 0 16px;
+}
+.section-stripe.mint   { background: var(--acid-mint); }
+.section-stripe.violet { background: var(--ultraviolet); }
+.section-stripe.coral  { background: var(--hot-coral); }
+.section-stripe.yellow { background: var(--signal-yellow); }
+
+.section h2 {
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+  margin: 0 0 16px;
+  color: var(--text-primary);
+}
+.section-sub {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  font-weight: 600;
+  margin: 0 0 18px;
+}
+
+/* Card: rounded, soft shadow, generous padding. Holds the rendered <pre>. */
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px 26px;
+  margin: 14px 0;
+  box-shadow: var(--shadow-card);
+  transition: border-color 120ms ease-out;
+}
+.card:hover { border-color: var(--border-accent); }
+.card h3 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  font-weight: 600;
+  margin: 0 0 10px;
+  color: var(--text-primary);
+}
+.card-empty { color: var(--text-tertiary); font-style: italic; }
+.card-empty p { margin: 0; }
+.card-sub { /* used when stacking multiple sub-cards inside one section */ }
+
+p { margin: 0 0 12px; line-height: 1.6; color: var(--text-primary); }
+strong { color: var(--text-primary); font-weight: 600; }
+
+a {
+  color: var(--acid-mint-dim);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--acid-mint-dim);
+}
+a:hover { color: var(--ultraviolet-dim); border-bottom-color: var(--ultraviolet-dim); }
+
+/* Markdown text drops into <pre>, so style it for easy reading. */
+pre {
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  padding: 16px 20px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  color: var(--text-primary);
+  margin: 0;
+}
+code {
+  font-family: var(--font-mono);
+  background: var(--bg-inset);
+  color: var(--acid-mint-dim);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+/* Tables: thin rules, mono numerics. */
+table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 13px; }
+th {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+  font-weight: 600;
+  background: var(--bg-inset);
+}
+td {
+  text-align: left;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  color: var(--text-primary);
+}
+tr:last-child td { border-bottom: none; }
+
+/* Closing footer. */
+.closing {
+  border-top: 1px solid var(--border);
+  margin-top: 56px;
+  padding-top: 24px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+.closing .acid { color: var(--acid-mint-dim); }
+
+/* Mobile: tighten gutters, scale the hero label down. */
+@media (max-width: 640px) {
+  .wrap { padding: 20px 16px 60px; }
+  .hero h1 { font-size: 32px; }
+  .hero .lede { font-size: 15px; }
+  .section h2 { font-size: 22px; }
+  .card { padding: 18px 20px; }
+}
 ```
 
 Tune the sections list to what they named. If they didn't name "team pulse", drop the team_pulse function. Keep the dashboard small. They can ask Claude to extend it later.
