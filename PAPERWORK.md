@@ -864,11 +864,179 @@ signal-yellow accents, dark-mode aware via prefers-color-scheme.
 from pathlib import Path
 from datetime import date
 import html
+import re
 
 ROOT = Path(__file__).resolve().parent.parent
 HERE = Path(__file__).resolve().parent
 OUT = HERE / "index.html"
 STYLE_FILE = HERE / "style.css"
+
+
+# Tiny markdown renderer, stdlib only. Covers what real journal, prep, and
+# health files use: headings, paragraphs, bullet and ordered lists, bold,
+# italic, inline code, fenced code blocks, links, blockquotes, and
+# horizontal rules. Escapes HTML first, then parses, so anything that
+# looks like a tag in user content lands as text, never live HTML.
+#
+# Reserved page chrome: h1 belongs to the hero, so user content headings
+# shift down one level (md `#` becomes h2, `##` becomes h3, `###` becomes
+# h4). Anything deeper than that flattens to h4.
+
+_SAFE_URL_SCHEMES = ("http://", "https://", "mailto:", "/", "#")
+
+
+def _safe_url(url: str) -> str:
+    """Allowlist URL schemes for links. Anything else returns '#' so a
+    stray javascript: or data: URI cannot land as a live href."""
+    stripped = url.strip()
+    lower = stripped.lower()
+    for scheme in _SAFE_URL_SCHEMES:
+        if lower.startswith(scheme):
+            return stripped
+    return "#"
+
+
+def _render_inline(text: str) -> str:
+    """Inline pass on text that has already been html.escape'd. Pulls
+    code spans out first (they suppress other inline parsing), then
+    links, then bold, then italic."""
+    spans: list[str] = []
+
+    def stash(html_fragment: str) -> str:
+        spans.append(html_fragment)
+        return f"\x00{len(spans) - 1}\x00"
+
+    def code_sub(m: re.Match) -> str:
+        return stash(f"<code>{m.group(1)}</code>")
+
+    text = re.sub(r"`([^`]+?)`", code_sub, text)
+
+    def link_sub(m: re.Match) -> str:
+        label, url = m.group(1), m.group(2)
+        # url was escape'd already, so &amp; etc. need unescaping for the
+        # scheme check, but we re-escape the result for the href.
+        raw = html.unescape(url)
+        safe = _safe_url(raw)
+        return stash(f'<a href="{html.escape(safe, quote=True)}">{label}</a>')
+
+    text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", link_sub, text)
+
+    text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+    text = re.sub(r"(?<![\w*])\*(?!\s)(.+?)(?<!\s)\*(?![\w*])", r"<em>\1</em>", text)
+
+    def restore(m: re.Match) -> str:
+        return spans[int(m.group(1))]
+
+    return re.sub(r"\x00(\d+)\x00", restore, text)
+
+
+def _list_item_html(content: str) -> str:
+    return f"<li>{_render_inline(content)}</li>"
+
+
+def _flush_paragraph(buf: list[str]) -> str:
+    if not buf:
+        return ""
+    joined = "<br>".join(_render_inline(line) for line in buf)
+    buf.clear()
+    return f"<p>{joined}</p>"
+
+
+def render_markdown(src: str) -> str:
+    """Render markdown to HTML. Escapes first, parses second. Returns a
+    string of block-level HTML safe to drop inside <div class="prose">."""
+    if not src.strip():
+        return ""
+
+    escaped = html.escape(src)
+    lines = escaped.split("\n")
+    out: list[str] = []
+    para: list[str] = []
+    i = 0
+
+    def flush():
+        chunk = _flush_paragraph(para)
+        if chunk:
+            out.append(chunk)
+
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+
+        # Fenced code block: ``` opens, ``` closes. Content stays raw
+        # (already escaped), no inline parsing, no <br> injection.
+        if stripped.startswith("```"):
+            flush()
+            i += 1
+            code: list[str] = []
+            while i < len(lines) and not lines[i].strip().startswith("```"):
+                code.append(lines[i])
+                i += 1
+            out.append(f"<pre><code>{chr(10).join(code)}</code></pre>")
+            i += 1
+            continue
+
+        # Horizontal rule.
+        if re.match(r"^-{3,}$|^\*{3,}$", stripped):
+            flush()
+            out.append("<hr>")
+            i += 1
+            continue
+
+        # Heading. `#` becomes h2 (h1 is the hero), capped at h4.
+        m = re.match(r"^(#{1,6})\s+(.+?)\s*#*$", stripped)
+        if m:
+            flush()
+            depth = min(len(m.group(1)) + 1, 4)
+            out.append(f"<h{depth}>{_render_inline(m.group(2))}</h{depth}>")
+            i += 1
+            continue
+
+        # Blockquote: collect contiguous `>` lines (escaped to `&gt;`),
+        # parse content as paragraph text with soft breaks.
+        if stripped.startswith("&gt;"):
+            flush()
+            quoted: list[str] = []
+            while i < len(lines) and lines[i].strip().startswith("&gt;"):
+                quoted.append(re.sub(r"^\s*&gt;\s?", "", lines[i]))
+                i += 1
+            inner = "<br>".join(_render_inline(q) for q in quoted)
+            out.append(f"<blockquote>{inner}</blockquote>")
+            continue
+
+        # Unordered list. Contiguous `- ` or `* ` lines at column zero.
+        if re.match(r"^\s*[-*]\s+", line):
+            flush()
+            items: list[str] = []
+            while i < len(lines) and re.match(r"^\s*[-*]\s+", lines[i]):
+                items.append(_list_item_html(re.sub(r"^\s*[-*]\s+", "", lines[i])))
+                i += 1
+            out.append(f"<ul>{''.join(items)}</ul>")
+            continue
+
+        # Ordered list. Contiguous `N. ` lines.
+        if re.match(r"^\s*\d+\.\s+", line):
+            flush()
+            items = []
+            while i < len(lines) and re.match(r"^\s*\d+\.\s+", lines[i]):
+                items.append(_list_item_html(re.sub(r"^\s*\d+\.\s+", "", lines[i])))
+                i += 1
+            out.append(f"<ol>{''.join(items)}</ol>")
+            continue
+
+        # Blank line: paragraph break.
+        if stripped == "":
+            flush()
+            i += 1
+            continue
+
+        # Otherwise: append to the current paragraph buffer. Single
+        # newlines inside a paragraph become <br>.
+        para.append(stripped)
+        i += 1
+
+    flush()
+    return "".join(out)
 
 
 # Three stacked papers: the Paperwork mark. Coral on top of yellow on top
@@ -897,8 +1065,9 @@ def read_file(path: Path) -> str:
 
 
 def card_section(title: str, body_md: str, accent: str, empty_note: str) -> str:
-    """Single-card section: color-striped header + one card wrapping the
-    body markdown as a <pre>. `accent` ∈ {mint, violet, coral, yellow}."""
+    """Single-card section: color-striped header plus one card wrapping
+    the body markdown rendered to HTML. `accent` is one of mint, violet,
+    coral, yellow."""
     title_h = html.escape(title)
     if not body_md.strip():
         prompt = html.escape(empty_note)
@@ -909,11 +1078,12 @@ def card_section(title: str, body_md: str, accent: str, empty_note: str) -> str:
             f'<div class="card card-empty"><p>{prompt}</p></div>'
             f'</section>'
         )
+    rendered = render_markdown(body_md)
     return (
         f'<section class="section">'
         f'<div class="section-stripe {accent}"></div>'
         f'<h2>{title_h}</h2>'
-        f'<div class="card"><pre>{html.escape(body_md)}</pre></div>'
+        f'<div class="card"><div class="prose">{rendered}</div></div>'
         f'</section>'
     )
 
@@ -947,7 +1117,7 @@ def prep_cards_section() -> str:
         sub_cards.append(
             f'<div class="card card-sub">'
             f'<h3>{html.escape(title)}</h3>'
-            f'<pre>{html.escape(card.read_text())}</pre>'
+            f'<div class="prose">{render_markdown(card.read_text())}</div>'
             f'</div>'
         )
     count = len(cards)
@@ -1270,21 +1440,80 @@ a {
 }
 a:hover { color: var(--ultraviolet-dim); border-bottom-color: var(--ultraviolet-dim); }
 
-/* Markdown text drops into <pre>, so style it for easy reading. */
-pre {
-  background: var(--bg-inset);
-  border: 1px solid var(--border);
-  padding: 16px 20px;
-  border-radius: var(--radius-md);
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  line-height: 1.6;
-  overflow-x: auto;
-  white-space: pre-wrap;
+/* Prose: rendered markdown inside a card. Editorial type, generous
+   spacing, accent color on the list markers and inline code. */
+.prose > :first-child { margin-top: 0; }
+.prose > :last-child  { margin-bottom: 0; }
+
+.prose h2,
+.prose h3,
+.prose h4 {
+  font-family: var(--font-display);
+  letter-spacing: -0.015em;
+  font-weight: 700;
   color: var(--text-primary);
-  margin: 0;
+  margin: 22px 0 10px;
+  line-height: 1.25;
 }
-code {
+.prose h2 { font-size: 20px; }
+.prose h3 { font-size: 17px; font-weight: 600; }
+.prose h4 {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 18px 0 8px;
+}
+
+.prose p {
+  font-family: var(--font-body);
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: var(--text-primary);
+  margin: 0 0 12px;
+}
+
+.prose ul,
+.prose ol {
+  margin: 0 0 14px;
+  padding-left: 22px;
+  color: var(--text-primary);
+}
+.prose ul { list-style: none; padding-left: 4px; }
+.prose ul li {
+  position: relative;
+  padding-left: 18px;
+  margin: 4px 0;
+  line-height: 1.6;
+}
+.prose ul li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.6em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--acid-mint-dim);
+}
+.prose ol { padding-left: 24px; }
+.prose ol li {
+  margin: 4px 0;
+  line-height: 1.6;
+  padding-left: 4px;
+}
+.prose ol li::marker {
+  color: var(--acid-mint-dim);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.prose strong { font-weight: 700; color: var(--text-primary); }
+.prose em { font-style: italic; }
+
+.prose code {
   font-family: var(--font-mono);
   background: var(--bg-inset);
   color: var(--acid-mint-dim);
@@ -1292,6 +1521,52 @@ code {
   border-radius: var(--radius-sm);
   font-size: 12.5px;
   font-weight: 500;
+}
+.prose pre {
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  padding: 14px 18px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  overflow-x: auto;
+  color: var(--text-primary);
+  margin: 0 0 14px;
+}
+.prose pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  border-radius: 0;
+  font-weight: 400;
+  font-size: inherit;
+}
+
+.prose a {
+  color: var(--acid-mint-dim);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 120ms ease-out, color 120ms ease-out;
+}
+.prose a:hover {
+  color: var(--ultraviolet-dim);
+  border-bottom-color: var(--ultraviolet-dim);
+}
+
+.prose blockquote {
+  margin: 12px 0;
+  padding: 4px 16px;
+  border-left: 3px solid var(--ultraviolet);
+  color: var(--text-secondary);
+  font-style: italic;
+}
+.prose blockquote p { margin: 6px 0; color: inherit; }
+
+.prose hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 20px 0;
 }
 
 /* Tables: thin rules, mono numerics. */
