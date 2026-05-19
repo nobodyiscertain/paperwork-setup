@@ -139,12 +139,14 @@ Use `{{placeholder}}` tokens in the templates below as a model for what to subst
 │   └── [current year]/
 ├── bragdoc/                     # Auto-created on first /eod route
 │   └── [current year]/
-├── references/                  # Question banks, frameworks, integrations doc
+├── context/                     # Question banks, frameworks, integrations doc
 │   ├── question-bank.md
 │   ├── signal-framework.md
 │   ├── feedback-guide.md
 │   ├── success-framework.md     # How they measure success.
 │   └── integrations.md          # Tools they named, with setup links/commands. Generated in Step 12.
+├── library/                     # Markdown docs the manager wants to come back to (research, frameworks, redlines). Surfaced as cards on the dashboard.
+│   └── README.md                # Starter explaining what belongs here.
 ├── [partners/]                  # If they mentioned cross-functional partners
 ├── [leadership/]                # If they want to track upward relationships
 ├── [meetings/]                  # If they record meetings or want non-1:1 logs. Lazy-created by /sync.
@@ -209,7 +211,7 @@ Their stated framework: {{success_metric_framework_summary}}
 
 What they actually weigh when answering "is X doing well?": {{success_metric_actual_inputs}}
 
-The full framework lives in `references/success-framework.md`. Read it before drafting any review, weekly, or signal write-up. Don't substitute a generic rubric.
+The full framework lives in `context/success-framework.md`. Read it before drafting any review, weekly, or signal write-up. Don't substitute a generic rubric.
 
 ## 1-on-1 Approach
 
@@ -227,12 +229,23 @@ The full framework lives in `references/success-framework.md`. Read it before dr
 {{#if records_meetings}}- `meetings/[year]/`: non-1-on-1 meeting notes, auto-routed from `/sync`.{{/if}}
 {{#if writes_weeklies}}- `weeklies/[year]/`: weekly updates drafted by `/weekly`.{{/if}}
 {{#if has_dashboard}}- `dashboard/`: the HTML dashboard renderer. Run it with the command in the README inside that folder.{{/if}}
-- `references/`: question banks, signal framework, success framework, feedback guide. Edit these as their thinking evolves.
+- `context/`: question banks, signal framework, success framework, feedback guide. Edit these as their thinking evolves.
+- `library/`: markdown docs the manager wants to come back to (research, frameworks, redlines, anything that doesn't fit the daily loop). The dashboard renders each as a card.
 - `.claude/commands/`: slash commands for daily use.
 
 ## Signal Framework
 
-Red, yellow, and positive signals are defined in `references/signal-framework.md`. Cross-reference any name mentioned in one person's notes against other people's `feedback.md`. Escalate red signals on the next `/prep` for that person. Don't suppress signals just because the conversation was warm.
+Red, yellow, and positive signals are defined in `context/signal-framework.md`. Cross-reference any name mentioned in one person's notes against other people's `feedback.md`. Escalate red signals on the next `/prep` for that person. Don't suppress signals just because the conversation was warm.
+
+## Closure Conventions
+
+Open items need a single canonical markup when they close. Three tokens, one per outcome:
+
+- `(resolved YYYY-MM-DD: reason)` for completed or done. The reason names what closed it (e.g., "shipped", "delivered in 1:1", "task SB-91").
+- `(dropped YYYY-MM-DD: reason)` for abandoned or superseded. The reason names why it went away (e.g., "no longer relevant", "superseded by X").
+- `(closed YYYY-MM-DD: reason)` for generic close when neither fits.
+
+Any slash command that resolves, drops, or closes something MUST append the appropriate marker on the source line. No bare `[x]`, no tombstones in a separate log. The marker is the audit trail.
 
 ## Tools and Integrations
 
@@ -331,11 +344,11 @@ The single source of truth for any kind of prep. 1-on-1, recurring meeting, peer
 {{#if tool_code_tracker}}   - From {{tool_code_tracker}}: PRs opened, reviewed, merged. {{tool_code_tracker_integration_call}}{{/if}}
 {{#if tool_meeting_recorder}}   - From {{tool_meeting_recorder}}: any transcripts involving this person or meeting not yet logged. {{tool_meeting_recorder_integration_call}}{{/if}}
 
-   If any of these integrations isn't wired up yet (the call errors, the CLI isn't installed, the MCP server isn't registered), don't fake the data and don't silently skip. Note which integrations are missing inline in the prep card under a `## Missing integrations` heading, and point at `references/integrations.md` so the manager can wire what's missing on their own time. Continue with whatever activity you could pull.
-4. **Score against the success framework (people only).** Read `references/success-framework.md`. Name a pulse: green, yellow, or red, with the actual reason rooted in {{manager_first_name}}'s measurement system. Skip for non-person prep.
-5. **Surface signals.** Cross-reference against `references/signal-framework.md`. Note red or yellow flags from the last few entries.
+   If any of these integrations isn't wired up yet (the call errors, the CLI isn't installed, the MCP server isn't registered), don't fake the data and don't silently skip. Note which integrations are missing inline in the prep card under a `## Missing integrations` heading, and point at `context/integrations.md` so the manager can wire what's missing on their own time. Continue with whatever activity you could pull.
+4. **Score against the success framework (people only).** Read `context/success-framework.md`. Name a pulse: green, yellow, or red, with the actual reason rooted in {{manager_first_name}}'s measurement system. Skip for non-person prep.
+5. **Surface signals.** Cross-reference against `context/signal-framework.md`. Note red or yellow flags from the last few entries.
 6. **List open promises.** Anything {{manager_first_name}} owes them (or owes the meeting attendees) from prior entries, marked Open or Done.
-7. **Suggest 3-5 questions or topics.** For 1-on-1s, pull from `references/question-bank.md`, weighted toward gaps in recent conversations and the person's current growth area. For recurring meetings, suggest topics worth raising based on recent activity.
+7. **Suggest 3-5 questions or topics.** For 1-on-1s, pull from `context/question-bank.md`, weighted toward gaps in recent conversations and the person's current growth area. For recurring meetings, suggest topics worth raising based on recent activity.
 8. **Output format.** Short narrative summary, pulse (if a person), signals, open promises, suggested questions or topics. Match {{manager_first_name}}'s communication style.
 9. **Save the prep card.** Write the output to `journal/[year]/[YYYY-MM-DD]-prep-[slug].md` where `[slug]` is the person's directory name or the meeting slug. Append if a card already exists for today's prep.
 
@@ -425,7 +438,7 @@ Team health snapshot for {{manager_first_name}}.
 
 1. **Cadence check.** For each person in `people/`, calculate days since last 1-on-1 (most recent entry in `one-on-ones.md`). Flag anyone past {{one_on_one_cadence_days}} days as overdue.
 2. **Open promises.** Read recent `one-on-ones.md` entries and surface anything {{manager_first_name}} owes that isn't marked Done.
-3. **Active signals.** Scan `feedback.md` and recent 1-on-1 entries for red or yellow flags from `references/signal-framework.md` not yet resolved.
+3. **Active signals.** Scan `feedback.md` and recent 1-on-1 entries for red or yellow flags from `context/signal-framework.md` not yet resolved.
 4. **Pulse summary.** For each person, name green/yellow/red using the success framework. Brief reason only.
 5. **Recommend priorities.** Who needs attention first this week, and why.
 6. **Output.** Short. Visual if helpful (a small table). No padding.
@@ -449,7 +462,7 @@ This command does NOT auto-execute changes. It surfaces recommendations, walks {
    - **Stale relationships:** anyone with no 1-on-1 entries in 90+ days. Did they leave, move teams, or did the cadence just slip?
    - **Empty stubs:** `profile.md` still at template content, or fewer than 2 1-on-1 entries after 30+ days. The directory was probably never finished.
 {{#if records_meetings}}   - **Stale recurring meetings:** any `meetings/recurring/[slug]/` with no entries in 60+ days. Cancelled? Renamed?
-{{/if}}   - **Reference drift:** files in `references/` (`question-bank.md`, `signal-framework.md`, `success-framework.md`, `feedback-guide.md`) untouched in 90+ days. Worth a re-read.
+{{/if}}   - **Context drift:** files in `context/` (`question-bank.md`, `signal-framework.md`, `success-framework.md`, `feedback-guide.md`) untouched in 90+ days. Worth a re-read.
    - **Stale "keep open" promises:** scan every `one-on-ones.md` for unchecked `- [ ]` items older than 30 days (use the file's git blame or surrounding date heading). These are promises that have been resurfacing through `/sync` and `/eod` without resolution. Surface for explicit drop or re-commitment.
    - **Unused commands:** scan `.claude/commands/` against {{manager_first_name}}'s recent journal entries. Anything not invoked in 60+ days, ask whether to keep.
    - **CLAUDE.md drift:** every slash command mentioned in `CLAUDE.md` should exist in `.claude/commands/`, and every directory referenced should exist. Flag mismatches in either direction.
@@ -496,7 +509,7 @@ The install marker lives at `.claude/paperwork-version` and contains one line: `
    - Card fields: a short title (derived from the most relevant commit subject), a one-paragraph description (commit body if present, otherwise a generated summary of "file X was updated"), the list of affected files, and the per-file change kind: `new`, `modified`, or `deleted-upstream`.
 
 6. **Walk the cards interactively.**
-   - For each card, print the title, the description, and a brief summary of what would change in the user's instance ("Adds new file `.claude/commands/foo.md`", "Updates `references/signal-framework.md` lines 40-55", etc). Don't dump raw unified diffs unless the user asks.
+   - For each card, print the title, the description, and a brief summary of what would change in the user's instance ("Adds new file `.claude/commands/foo.md`", "Updates `context/signal-framework.md` lines 40-55", etc). Don't dump raw unified diffs unless the user asks.
    - Ask `[Y] Yes - apply this change   [S] Skip   [Q] Quit and save progress`. Default to Skip. Y is destructive enough to require an explicit keypress.
    - If they pick `Q`, stop walking. Do not write the marker. Re-running picks up exactly where they left off.
 
@@ -553,7 +566,7 @@ Re-run the install wizard on an existing Paperwork instance. Distinct from `/pap
    - **Edit an existing report's profile or notes.** Pick the person, then open the file for edits.
    - **Add a slash command.** Walk the conditional list from the original interview ({{conditional_command_list_summary}}). Generate any newly opted-in commands using the same templates as the original install.
    - **Remove a slash command.** Pick from `.claude/commands/`. Move to `.claude/commands/_archived/` rather than delete.
-   - **Change a global setting.** Cadence, tools, success framework, signal framework, voice. Edit the relevant section of `CLAUDE.md` or `references/`.
+   - **Change a global setting.** Cadence, tools, success framework, signal framework, voice. Edit the relevant section of `CLAUDE.md` or `context/`.
    - **Restructure for a new role.** If their role has changed materially (new function, new team size, new tools), offer to re-run the full interview from scratch. Warn them: this overwrites `CLAUDE.md` and may overwrite reference files. People directories and journals are never touched.
 
 4. **Apply the chosen change.** Each menu option is a thin wrapper around an existing piece of the original install flow. No new generation logic should live here that isn't also in the install templates.
@@ -607,11 +620,11 @@ End of day recap.
 
    After routing each item, **delete the inbox line.** Do not leave `(routed → ...)` tombstones; the destination file (or git history) is the audit trail. If a `## YYYY-MM-DD` header has no items left after routing, delete the header block too.
 
-5. **Promise triage.** If today's inbox has a `### Open promises (review)` section (written by `/sync` when it scanned `one-on-ones.md` files for unchecked {{manager_first_name}}-owned items), walk each line. The inbox entry includes a `path:line` reference back to the source file. Four options per item:
-   - **Done**: edit the source line `[ ]` → `[x]` (use the `path:line` to navigate). Then delete the inbox line.
+5. **Promise triage.** If today's inbox has a `### Open promises (review)` section (written by `/sync` when it scanned `one-on-ones.md` files for unchecked {{manager_first_name}}-owned items), walk each line. The inbox entry includes a `path:line` reference back to the source file. Four options per item, each with the canonical closure markup from `CLAUDE.md`:
+   - **Done**: edit the source line `[ ]` → `[x] (resolved YYYY-MM-DD: <reason>)` (use the `path:line` to navigate). Reason is whatever closed it ("shipped", "delivered in 1:1", etc.). Then delete the inbox line.
    - **Keep open**: delete the inbox line, leave the source `[ ]` untouched. The next `/sync` for that person will resurface it. This is the right move when there is no external task tracker; let the resurfacing do the reminding.
-{{#if tool_tasks}}   - **Push to {{tool_tasks}}**: create the task in {{tool_tasks}}, then edit the source line to `[x] (→ {{task_id}})` referencing the new task. Then delete the inbox line.
-{{/if}}   - **Drop**: edit the source line to `[x] (dropped [today])`. Then delete the inbox line.
+{{#if tool_tasks}}   - **Push to {{tool_tasks}}**: create the task in {{tool_tasks}}, then edit the source line to `[x] (resolved YYYY-MM-DD: {{task_id}})` referencing the new task. Then delete the inbox line.
+{{/if}}   - **Drop**: edit the source line to `[x] (dropped YYYY-MM-DD: <reason>)`. Reason names why it went away. Then delete the inbox line.
 6. **Write the recap** to `journal/[year]/[today].md` under a `## EOD` header. Append.
 {{#if has_dashboard}}7. **Refresh the dashboard.**{{/if}}
 {{#if has_git}}8. Commit: "eod [today]"{{/if}}
@@ -626,7 +639,7 @@ Batch process recorded meetings.
 
 1. **Pull unlogged meetings** from {{tool_meeting_recorder}} since the last sync. {{tool_meeting_recorder_integration_call}}
 
-   If {{tool_meeting_recorder}} isn't reachable (the integration isn't installed, the call errors, the auth is stale), don't silently fail. Stop the routing pass, tell the manager which integration is missing, and point them at `references/integrations.md` for the setup steps. Resume `/sync` after they wire it.
+   If {{tool_meeting_recorder}} isn't reachable (the integration isn't installed, the call errors, the auth is stale), don't silently fail. Stop the routing pass, tell the manager which integration is missing, and point them at `context/integrations.md` for the setup steps. Resume `/sync` after they wire it.
 
 2. **Route each one:**
    - **1-on-1:** find the person across `people/`, `partners/`, and `leadership/`. If the person doesn't have a folder yet (a first-time direct from your transcripts, a new partner who showed up), call `/new` non-interactively to scaffold the folder with whatever you can infer from the transcript (name, possibly title, possibly the meeting recorder's handle), then prepend the summary. After routing, surface the new person in chat: "I scaffolded `people/jane-roe/` from today's transcript. Open `profile.md` and fill in what you know." Then summarize the meeting and prepend to their `one-on-ones.md` with date and structured sections (Discussion, Signals, Action items, Notes for next time). Cross-reference any other names mentioned in the conversation to those people's `feedback.md`. Names mentioned but not yet scaffolded get a one-line "first mention" entry queued into today's inbox block for the manager to decide whether to `/new` them.
@@ -652,7 +665,16 @@ Batch process recorded meetings.
    The `path:line` reference lets `/eod` navigate back to the source so it can edit the checkbox in place. If no matches, omit the heading.
 
 4. **Surface "needs your eyes" inline.** After processing, also list in chat anything that needs {{manager_first_name}}'s judgment right now: a flag, an unclear action item, a name they didn't recognize. The inbox block is the durable safety net; this is the immediate prompt.
-{{#if has_git}}5. Commit: "sync [today]"{{/if}}
+
+5. **Flag closure reconciliation.** For each person whose 1-on-1 was processed today, scan their `feedback.md` and recent `one-on-ones.md` for signal lines (red, yellow, positive) that don't yet carry a closure marker (`(resolved …)`, `(dropped …)`, `(closed …)`). For each open flag older than the cadence window ({{one_on_one_cadence_days}} days), add a line to today's inbox block under a `### Flag closure candidates` heading in the format:
+
+   ```
+   - ([person]) [verbatim flag line]. `path/to/file.md:LINE`
+   ```
+
+   The `path:line` reference lets {{manager_first_name}} decide on the next `/eod` whether the flag resolved, dropped, or stays open. If no matches, omit the heading.
+
+{{#if has_git}}6. Commit: "sync [today]"{{/if}}
 ```
 
 ```markdown
@@ -666,7 +688,7 @@ Log a 1-on-1 manually.
 2. **Ask {{manager_first_name}}** to dump notes or talk through what happened. Capture raw.
 3. **Extract structured pieces:**
    - Key discussion points (3-7 bullets)
-   - Signals (using `references/signal-framework.md`)
+   - Signals (using `context/signal-framework.md`)
    - Action items, separated into "theirs" and "{{manager_first_name}}'s"
    - Names of anyone else mentioned
    - Notes for next time
@@ -705,7 +727,7 @@ Draft a performance review.
 
 1. **Confirm the review period.** Default to {{review_cadence}} if not specified.
 2. **Read everything.** `profile.md`, all `one-on-ones.md` entries in the period, all `feedback.md` entries in the period.
-3. **Apply {{manager_first_name}}'s success framework.** Read `references/success-framework.md` and apply the actual stated criteria. Don't substitute a generic rubric.
+3. **Apply {{manager_first_name}}'s success framework.** Read `context/success-framework.md` and apply the actual stated criteria. Don't substitute a generic rubric.
 4. **Surface patterns.** Strengths repeated across multiple 1-on-1s. Growth areas repeated. Signals that resolved or escalated.
 5. **Draft the review** in {{manager_first_name}}'s voice. Sections: summary, strengths (with examples), growth areas (with examples), {{#if tool_perf_system}}rating against {{tool_perf_system}} rubric, {{/if}}forward-looking notes.
 6. **Save the draft** to `people/[name]/reviews.md`. Create the file if it doesn't exist yet. Append the draft under a `## [YYYY-MM-DD] [review_cadence] Review` heading; newest entries go at the top. Don't paste the draft anywhere else.
@@ -720,7 +742,7 @@ TEMPLATE: .claude/commands/coach.md (conditional: feedback is a stated pain)
 Prepare to deliver tough feedback.
 
 1. **Read context.** `profile.md`, recent `one-on-ones.md`, `feedback.md`.
-2. **Read the feedback guide** at `references/feedback-guide.md`.
+2. **Read the feedback guide** at `context/feedback-guide.md`.
 3. **Ask {{manager_first_name}}** for the rough version of what they want to say. Capture raw.
 4. **Structure it.** Open with the situation, name the behavior with one concrete example, name the impact, ask for their read. Use {{manager_first_name}}'s tone ({{comm_style}}).
 5. **Pressure-test.** Where will this land wrong? What's the most likely pushback? What if they cry, get defensive, or shut down?
@@ -729,7 +751,7 @@ Prepare to deliver tough feedback.
 
 ### Step 4: Generate Question Banks
 
-Create `references/question-bank.md` organized by category. Base depth on stated philosophy and pain points.
+Create `context/question-bank.md` organized by category. Base depth on stated philosophy and pain points.
 
 Always include:
 - Team dynamics and collaboration
@@ -749,7 +771,7 @@ Weight banks toward pain points. If they said "I never know what to ask about ca
 
 ### Step 5: Generate Signal Framework
 
-Create `references/signal-framework.md` based on what they actually said they watch for.
+Create `context/signal-framework.md` based on what they actually said they watch for.
 
 Structure:
 - **Red signals** (immediate attention): from their stated struggling signals
@@ -760,7 +782,7 @@ Structure:
 
 ### Step 6: Generate Success Framework
 
-Create `references/success-framework.md`. This is new and load-bearing.
+Create `context/success-framework.md`. This is new and load-bearing.
 
 Write:
 1. Their stated framework, verbatim or near-verbatim from the interview.
@@ -772,7 +794,7 @@ This file is the spine for any output that grades performance. Don't substitute 
 
 ### Step 7: Generate Feedback Guide
 
-Create `references/feedback-guide.md` adapted to their feedback style.
+Create `context/feedback-guide.md` adapted to their feedback style.
 
 Include:
 - Their stated approach (in the moment vs scheduled, verbal vs written)
@@ -824,6 +846,28 @@ A few generation rules to keep `/new`'s output usable:
   ```
 
   Entries go under `## Feedback Given` (feedback the manager gave the person) or `## Feedback Received (About Them)` (feedback others gave about this person). Both headings exist by default; populated by commands over time.
+
+### Step 8.5: Seed the Library
+
+Create `library/README.md`. The library is where the manager drops markdown docs they want to come back to: research notes, frameworks, redlines, ladders, anything that doesn't fit the daily loop. The dashboard surfaces each file as a card and renders the markdown client-side when clicked.
+
+Always seed one starter file so the feature is visible on first render. Use this template verbatim:
+
+```markdown
+TEMPLATE: library/README.md
+---
+# Library
+
+This is your library. Drop any markdown doc you want to come back to: research notes, frameworks, redlines, ladders, a writeup you keep re-reading.
+
+Each file in this directory shows up as a card on the dashboard. The card title is the doc's H1; the preview is the first paragraph. Click a card to read the full doc inline.
+
+There's no required structure. One doc per file, free-form markdown. Newest-first sorting is not a thing; the order is alphabetical by filename.
+
+When something stops being useful, delete it. When something needs a closure marker (a redline you're done iterating on, a framework you've moved past), use the canonical markup from `CLAUDE.md`: `(resolved YYYY-MM-DD: reason)`, `(dropped YYYY-MM-DD: reason)`, or `(closed YYYY-MM-DD: reason)`.
+```
+
+The starter doc itself becomes the first library card on first render, so the manager sees the feature without needing to add anything.
 
 ### Step 9: Generate the Dashboard (Conditional)
 
@@ -1143,12 +1187,106 @@ def team_pulse_section() -> str:
     )
 
 
+def library_section() -> str:
+    """Library: each markdown doc in library/ rendered as a card. The card
+    shows the doc's H1 (or filename if no H1) plus its first paragraph as
+    a preview. Clicking a card opens the rendered markdown in an inline
+    overlay. Rendering happens client-side via marked.js so the dashboard
+    stays a single static file that works at file:// with no server."""
+    lib_dir = ROOT / "library"
+    if not lib_dir.exists():
+        return ""
+    docs = sorted(p for p in lib_dir.glob("*.md") if p.name.lower() != "readme.md")
+    # Always include README.md if it exists, but at the end so user docs lead.
+    readme = lib_dir / "README.md"
+    if readme.exists():
+        docs.append(readme)
+    if not docs:
+        return card_section(
+            "Library",
+            "",
+            accent="coral",
+            empty_note="No library docs yet. Drop markdown files into library/ to surface them here.",
+        )
+
+    cards_html = []
+    for doc in docs:
+        raw = doc.read_text()
+        # Extract H1 for the title, fall back to the filename.
+        h1_match = re.search(r"^#\s+(.+?)\s*$", raw, re.MULTILINE)
+        title = h1_match.group(1) if h1_match else doc.stem.replace("-", " ").title()
+        # First paragraph after the H1 (or after any front matter) as preview.
+        body_after_h1 = raw[h1_match.end():] if h1_match else raw
+        preview = ""
+        for para in re.split(r"\n\s*\n", body_after_h1.strip()):
+            para = para.strip()
+            if para and not para.startswith("#"):
+                preview = para[:240]
+                break
+        # Stash the raw markdown into a hidden <script> tag so marked.js can
+        # render it on click without re-fetching (file:// has no CORS escape).
+        slug = doc.stem
+        cards_html.append(
+            f'<div class="card card-sub library-card" data-slug="{html.escape(slug, quote=True)}">'
+            f'<h3>{html.escape(title)}</h3>'
+            f'<p class="library-preview">{html.escape(preview)}</p>'
+            f'</div>'
+            f'<script type="text/markdown" data-slug="{html.escape(slug, quote=True)}">'
+            f'{raw}'
+            f'</script>'
+        )
+
+    overlay = (
+        '<div class="library-overlay" id="library-overlay" hidden>'
+        '<div class="library-overlay-inner">'
+        '<button class="library-close" id="library-close" aria-label="Close">×</button>'
+        '<div class="prose" id="library-rendered"></div>'
+        '</div>'
+        '</div>'
+    )
+
+    script = (
+        '<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>'
+        '<script>'
+        '(function(){'
+        'var overlay=document.getElementById("library-overlay");'
+        'var rendered=document.getElementById("library-rendered");'
+        'var close=document.getElementById("library-close");'
+        'document.querySelectorAll(".library-card").forEach(function(card){'
+        'card.addEventListener("click",function(){'
+        'var slug=card.getAttribute("data-slug");'
+        'var src=document.querySelector(\'script[type="text/markdown"][data-slug="\'+slug+\'"]\');'
+        'if(!src||!window.marked){return;}'
+        'rendered.innerHTML=window.marked.parse(src.textContent);'
+        'overlay.hidden=false;'
+        '});'
+        '});'
+        'close.addEventListener("click",function(){overlay.hidden=true;});'
+        'overlay.addEventListener("click",function(e){if(e.target===overlay){overlay.hidden=true;}});'
+        '})();'
+        '</script>'
+    )
+
+    count = len(docs)
+    sub = f'{count} doc{"s" if count != 1 else ""}'
+    return (
+        f'<section class="section">'
+        f'<div class="section-stripe coral"></div>'
+        f'<h2>Library</h2>'
+        f'<p class="section-sub">{sub}</p>'
+        f'<div class="library-grid">{"".join(cards_html)}</div>'
+        f'{overlay}'
+        f'{script}'
+        f'</section>'
+    )
+
+
 # Sections the manager picked in the interview. Add or remove section
 # functions to match. Each function returns a complete <section> block
 # (stripe + heading + card[s]) so this list controls page composition
 # top to bottom.
 SECTIONS = [
-    {{dashboard_sections_list}}  # e.g., today_section, prep_cards_section, team_pulse_section
+    {{dashboard_sections_list}}  # e.g., today_section, prep_cards_section, team_pulse_section, library_section
 ]
 
 
@@ -1222,6 +1360,7 @@ The dashboard reads what commands like `/sod`, `/prep`, and `/health` wrote, and
 - Top bar with the Paperwork mark on the left and today's date on the right.
 - A hero block with a Verge-style day label (e.g., "Friday, May 16.") and a one-line lede explaining what the page is.
 - Section cards, each with a colored stripe at the top (mint, ultraviolet, coral, yellow) and the rendered markdown wrapped in a card.
+- A Library section with one card per markdown file in `library/`. Click a card to open the rendered doc inline. Drop new files into `library/` and re-render to surface them.
 
 The color palette and editorial type are lifted from the [paperwork](https://github.com/nobodyiscertain/paperwork) design system.
 
@@ -1430,6 +1569,57 @@ body {
 .card-empty p { margin: 0; }
 .card-sub { /* used when stacking multiple sub-cards inside one section */ }
 
+/* Library: card grid with preview text, click-to-render overlay. Markdown
+   is rendered client-side via marked.js so the page stays a single static
+   file that works at file://. */
+.library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+.library-card { cursor: pointer; margin: 0; }
+.library-card:hover { border-color: var(--hot-coral-dim); }
+.library-preview {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
+.library-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 16px;
+  overflow-y: auto;
+}
+.library-overlay[hidden] { display: none; }
+.library-overlay-inner {
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  padding: 32px 36px;
+  max-width: 780px;
+  width: 100%;
+  position: relative;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+}
+.library-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  background: none;
+  border: 0;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text-tertiary);
+}
+.library-close:hover { color: var(--text-primary); }
+
 p { margin: 0 0 12px; line-height: 1.6; color: var(--text-primary); }
 strong { color: var(--text-primary); font-weight: 600; }
 
@@ -1616,6 +1806,10 @@ tr:last-child td { border-bottom: none; }
 
 Tune the sections list to what they named. If they didn't name "team pulse", drop the team_pulse function. Keep the dashboard small. They can ask Claude to extend it later.
 
+**Library section.** Include `library_section` in `SECTIONS` whenever the install seeds a `library/` directory (always, per Step 1). The Python code enumerates `library/*.md` at render time, pulls each doc's H1 as the card title and the first paragraph as a preview, and stashes the raw markdown into hidden `<script type="text/markdown">` tags in the rendered HTML. Clicking a card opens an overlay; a small inline JS block calls `marked.parse()` on the stashed markdown and drops the HTML into the overlay. This avoids a `fetch()` call (which fails under `file://` for cross-origin reasons) and keeps `dashboard/index.html` a single static file that works when opened directly from disk. The only external request is the `marked.min.js` script tag pointed at jsDelivr. If the manager wants a fully offline dashboard, they can save `marked.min.js` next to `index.html` and swap the `<script src>` to a local path.
+
+When you write the first starter file at `library/README.md`, the dashboard will surface it as a card on first render so the manager sees the feature without needing to drop anything new in.
+
 ### Step 10: Initialize Git (Optional)
 
 Ask: "Want me to initialize this as a git repo? Version control is useful for tracking changes over time. Not required."
@@ -1662,7 +1856,8 @@ Claude is your copilot for managing {{report_count}} direct reports{{#if has_par
 {{/if}}| `journal/[year]/` | Daily notes. `/think` and `/eod` write here. Prep cards also land here. |
 | `decisions/[year]/` | Significant decisions worth coming back to. Auto-created on first `/eod` route. |
 | `bragdoc/[year]/` | Weekly wins capture. Auto-created on first `/eod` route. |
-| `references/` | Question banks, signal framework, success framework, feedback guide, integrations doc. Edit as your thinking evolves. |
+| `context/` | Question banks, signal framework, success framework, feedback guide, integrations doc. Edit as your thinking evolves. |
+| `library/` | Markdown docs you want to come back to (research, frameworks, redlines). Surfaced as cards on the dashboard. |
 {{#if records_meetings}}| `meetings/[year]/` | Non-1-on-1 meeting notes. Lazy-created by `/sync` on first run. |
 {{/if}}{{#if writes_weeklies}}| `weeklies/[year]/` | Weekly update drafts. Lazy-created by `/weekly` on first run. |
 {{/if}}{{#if has_dashboard}}| `dashboard/` | The HTML dashboard renderer. See the README inside that folder. |
@@ -1685,11 +1880,11 @@ You don't have to do all of this. Pick what's useful.
 2. **Before your next 1-on-1.** Run `/new [first-last]` for the report you're about to meet with. The agent asks the basics, builds the folder, surfaces anything already captured about that name in other notes. Repeat for your other reports as you go (or do them all at once with a paste-list when you have ten minutes).
 {{#if has_dashboard}}3. **Take the dashboard for a spin (optional).** Run the dashboard renderer (see `dashboard/README.md`) and open `dashboard/index.html`. Bookmark it.
 {{/if}}4. **After each 1-on-1.** Either let `/sync` pick it up automatically (if you record meetings) or run `/log [name]`. Don't worry about format. The system makes sense over time.
-5. **End of the first week.** Run `/health` and see if it surfaces anything useful. If it doesn't, edit `references/signal-framework.md` to match what you actually watch for, then try again.
+5. **End of the first week.** Run `/health` and see if it surfaces anything useful. If it doesn't, edit `context/signal-framework.md` to match what you actually watch for, then try again.
 
 ## Integrations
 
-`references/integrations.md` lists every tool you named during install with the setup link or install command for each. Slash commands that need an integration point at this file when one isn't wired yet, so the system tells you exactly what to install instead of failing quietly.
+`context/integrations.md` lists every tool you named during install with the setup link or install command for each. Slash commands that need an integration point at this file when one isn't wired yet, so the system tells you exactly what to install instead of failing quietly.
 
 ## What to expect
 
@@ -1719,7 +1914,7 @@ This repo contains real notes on real people. Don't paste names or notes into we
 
 After substitution, write the rendered content to `README.md` at the root of the user's instance. Don't ship literal `{{` tokens.
 
-### Step 12: Generate `references/integrations.md`
+### Step 12: Generate `context/integrations.md`
 
 Write the integrations doc using the tools the manager named in Part 3 of the interview (Calendar, Notes, Personal tasks, Team work tracking, Code/repo tracking, Meeting recorder, Team communication, Performance/HR, and any "anything else" they mentioned). One row per named tool, with a real setup pointer for each. This file is what `/prep` and `/sync` point at when an integration isn't wired up yet, so it has to be specific enough that the manager can act on it.
 
@@ -1752,7 +1947,7 @@ command. Nothing here is required for the system to work; integrations
 make it faster.
 ```
 
-Save to `references/integrations.md`.
+Save to `context/integrations.md`.
 
 ### Step 13: Write the Install Marker
 
@@ -1802,7 +1997,7 @@ Use this template, adapted to what was actually generated:
 Built.
 
 Three things to do next:
-1. Connect your stack. Anything you said you wanted wired up lives in `references/integrations.md` with the setup link. Wire what you'll use this week, skip the rest.
+1. Connect your stack. Anything you said you wanted wired up lives in `context/integrations.md` with the setup link. Wire what you'll use this week, skip the rest.
 2. Run `/sod` tomorrow morning. The system reads `CLAUDE.md` and runs from there.
 {{#if has_dashboard}}3. The dashboard is open in your browser. Bookmark it.{{else}}3. Open `CLAUDE.md` and skim it. If anything misrepresents how you actually manage, edit it; the agent reads this file every session.{{/if}}
 
