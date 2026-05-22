@@ -1,0 +1,65 @@
+name: README drift check
+
+on:
+  pull_request:
+    paths:
+      - PAPERWORK.md
+      - 'commands/**'
+      - 'templates/**'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check README touched
+        id: drift
+        run: |
+          PR_BODY=$(jq -r '.pull_request.body // ""' "$GITHUB_EVENT_PATH")
+          if echo "$PR_BODY" | grep -qi '\[skip readme\]'; then
+            echo "PR body contains [skip readme] — skipping drift check."
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          CHANGED=$(git diff --name-only "$BASE_SHA".."$HEAD_SHA")
+          echo "Changed files:"
+          echo "$CHANGED"
+
+          TOUCHED_SOURCE=$(echo "$CHANGED" | grep -E '^(PAPERWORK\.md|commands/|templates/)' || true)
+          TOUCHED_README=$(echo "$CHANGED" | grep -E '^README\.md$' || true)
+
+          if [ -n "$TOUCHED_SOURCE" ] && [ -z "$TOUCHED_README" ]; then
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "drift=false" >> "$GITHUB_OUTPUT"
+
+      - name: Comment on drift
+        if: failure() && steps.drift.outputs.drift == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = [
+              '## README drift detected',
+              '',
+              'This PR changes `PAPERWORK.md` (or other skill source) but does not update `README.md`.',
+              '',
+              'Either:',
+              '',
+              '1. Update `README.md` in this PR to reflect the user-visible change, or',
+              '2. Add a `[skip readme]` line to the PR description if the change is internal-only (refactor, comment, formatting).',
+              '',
+              'Tracking ticket: [SB-95](https://linear.app/nobodyiscertain/issue/SB-95/design-auto-sync-mechanism-for-paperwork-setup-readme).'
+            ].join('\n');
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });
